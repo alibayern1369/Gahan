@@ -1,0 +1,37 @@
+-- ============================================================
+-- گاهان | OPTIONAL — Schedule the Edge-Function cleanup via pg_cron
+-- ------------------------------------------------------------
+-- This file lives OUTSIDE supabase/migrations because it needs
+-- your real project values. Run it manually in the Supabase SQL
+-- editor AFTER replacing the placeholders, if you prefer Supabase-
+-- native scheduling instead of Vercel Cron.
+--
+-- Steps:
+--   1. Enable extensions:  Dashboard → Database → Extensions
+--                          → enable «pg_cron» و «pg_net»
+--   2. Set the secret:     supabase secrets set CLEANUP_SECRET=<random>
+--   3. Deploy the fn:      supabase functions deploy cleanup-selfies
+--   4. Replace YOUR_PROJECT_REF / YOUR_CLEANUP_SECRET below, then run this file.
+--
+-- نکته: کلید مخفی داخل این کوئری ذخیره می‌شود؛ اگر لازم شد بعداً آن را
+-- با دستور زیر عوض کنید و همین job را دوباره بسازید:
+--   supabase secrets set CLEANUP_SECRET=<new-random>
+-- ============================================================
+
+-- select cron.schedule(
+--   'gahan-cleanup-selfies',
+--   '30 0 * * *',   -- هر روز ساعت ۰۰:۳۰ UTC
+--   $$
+--   select net.http_post(
+--     url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/cleanup-selfies',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'x-cleanup-key', 'YOUR_CLEANUP_SECRET'
+--     ),
+--     body := '{}'::jsonb
+--   );
+--   $$
+-- );
+
+-- حذف زمان‌بندی:
+-- select cron.unschedule('gahan-cleanup-selfies');
