@@ -25,6 +25,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
 /** Fetch singleton app settings; falls back to safe defaults on any failure. */
 export async function getSettings(): Promise<AppSettings> {
   try {
+    const { getServiceClient } = await import("@/lib/supabase/service");
+    const { data } = await getServiceClient()
+      .from("app_settings")
+      .select("*")
+      .eq("id", true)
+      .maybeSingle<AppSettings>();
+    if (data) return data;
+  } catch {
+    // service key missing or unreachable — try session client below
+  }
+
+  try {
     const supabase = await createClient();
     const { data } = await supabase.from("app_settings").select("*").eq("id", true).maybeSingle<AppSettings>();
     return data ?? DEFAULT_SETTINGS;
