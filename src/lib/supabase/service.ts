@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
-import { assertPublicEnv, requireServiceRoleKey, supabaseUrl } from "@/lib/env";
+import { assertPublicEnv, readSupabaseUrl, requireServiceRoleKey } from "@/lib/env";
 
 let cached: SupabaseClient | null = null;
 
@@ -12,7 +12,7 @@ let cached: SupabaseClient | null = null;
 export function getServiceClient(): SupabaseClient {
   if (!cached) {
     assertPublicEnv();
-    cached = createSupabaseClient(supabaseUrl, requireServiceRoleKey(), {
+    cached = createSupabaseClient(readSupabaseUrl(), requireServiceRoleKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
   }

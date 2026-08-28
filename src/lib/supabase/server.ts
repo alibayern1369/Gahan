@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { assertPublicEnv, supabaseAnonKey, supabaseUrl } from "@/lib/env";
+import { assertPublicEnv, readSupabaseAnonKey, readSupabaseUrl } from "@/lib/env";
 
 /**
  * Supabase client bound to the current user's session cookies.
@@ -10,7 +10,7 @@ export async function createClient() {
   assertPublicEnv();
   const cookieStore = await cookies();
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(readSupabaseUrl(), readSupabaseAnonKey(), {
     cookies: {
       getAll() {
         return cookieStore.getAll();
