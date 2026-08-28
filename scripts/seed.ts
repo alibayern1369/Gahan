@@ -47,8 +47,8 @@ const EMPLOYEES = [
   { first_name: "امیر", last_name: "موسوی", code: "EMP-006" },
 ];
 
-function slug(emailLocalPart: string): string {
-  return emailLocalPart.toLowerCase();
+function employeeEmail(code: string): string {
+  return `${code.toLowerCase().replace(/-/g, "")}@gahan.demo`;
 }
 
 async function ensureUser(email: string, password: string, emailConfirm = true): Promise<string> {
@@ -128,7 +128,7 @@ async function main() {
   const employeeIds: string[] = [];
   for (let i = 0; i < EMPLOYEES.length; i += 1) {
     const e = EMPLOYEES[i];
-    const email = `${slug(e.last_name)}.${i + 1}@gahan.local`;
+    const email = employeeEmail(e.code);
     const uid = await ensureUser(email, EMP_PASSWORD);
     await admin.from("profiles").upsert({
       user_id: uid,
@@ -147,30 +147,32 @@ async function main() {
   }
 
   /* ---------- sample attendance (past 14 days, Persian workweek Sat..Wed) ---------- */
-  const tzOffsetMin = 3.5 * 60; // Asia/Tehran
   const now = Date.now();
   let inserted = 0;
 
   for (let dayBack = 14; dayBack >= 0; dayBack -= 1) {
     const g = new Date(now - dayBack * 86_400_000);
-    // Persian weekday index for Tehran-local date
     const wdEn = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tehran", weekday: "short" }).format(g);
     const map: Record<string, number> = { Sat: 0, Sun: 1, Mon: 2, Tue: 3, Wed: 4, Thu: 5, Fri: 6 };
     const wd = map[wdEn] ?? 0;
-    if (wd > 4) continue; // پنجشنبه/جمعه تعطیل
+    if (wd > 4) continue;
+
+    const tehranDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran" }).format(g);
 
     for (let idx = 0; idx < employeeIds.length; idx += 1) {
       const empIdx = (idx + dayBack) % employeeIds.length;
-      // skip some random-ish absences
       if ((dayBack + idx) % 11 === 5) continue;
 
-      const base = Date.UTC(g.getUTCFullYear(), g.getUTCMonth(), g.getUTCDate());
-      const lateMin = [0, 0, 12, 0, 25][empIdx];
+      const lateMin = [0, 0, 12, 0, 25, 8][empIdx] ?? 0;
       const overtimeMin = empIdx === 1 ? 45 : 0;
       const checkinLocalMin = 9 * 60 + lateMin + (idx % 3) * 2;
       const workedMin = 8 * 60 + overtimeMin - ((dayBack * 7) % 13);
 
-      const checkinAt = new Date(base - tzOffsetMin * 60_000 + checkinLocalMin * 60_000);
+      const checkinHour = Math.floor(checkinLocalMin / 60);
+      const checkinMinute = checkinLocalMin % 60;
+      const [y, m, d] = tehranDate.split("-").map(Number);
+      const checkinAt = new Date(Date.UTC(y, m - 1, d, checkinHour - 3, checkinMinute - 30, 0));
+      if (Number.isNaN(checkinAt.getTime())) throw new Error(`checkinAt invalid for ${tehranDate}`);
       const isToday = dayBack === 0;
       // today: leave the session open for a couple of employees (still on site)
       const openSession = isToday && empIdx % 2 === 0;
