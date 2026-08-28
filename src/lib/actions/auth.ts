@@ -44,7 +44,15 @@ export async function signInAction(_prev: LoginState, formData: FormData): Promi
     return { error: "تلاش‌های زیاد؛ لطفاً یک دقیقه بعد دوباره امتحان کنید." };
   }
 
-  const supabase = await createClient();
+  let supabase;
+  try {
+    supabase = await createClient();
+  } catch {
+    return {
+      error: "تنظیمات سرور ناقص است. مدیر باید متغیرهای Supabase را در Vercel Environment Variables وارد کند.",
+    };
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error || !data.user) {

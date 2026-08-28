@@ -5,8 +5,12 @@ const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const supabaseUrl = url ?? "";
 export const supabaseAnonKey = anon ?? "";
 
+export function hasPublicEnv(): boolean {
+  return Boolean(url?.trim() && anon?.trim());
+}
+
 export function assertPublicEnv(): void {
-  if (!url || !anon) {
+  if (!hasPublicEnv()) {
     throw new Error(
       "متغیرهای NEXT_PUBLIC_SUPABASE_URL و NEXT_PUBLIC_SUPABASE_ANON_KEY تنظیم نشده‌اند. فایل .env.local را بر اساس .env.example بسازید."
     );

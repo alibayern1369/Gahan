@@ -11,20 +11,24 @@ export interface AuthContext {
 
 /** Resolve the current authenticated profile, or null. Identity comes from the server session. */
 export async function getAuthContext(): Promise<AuthContext | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle<Profile>();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle<Profile>();
 
-  if (!profile) return null;
-  return { user, profile };
+    if (!profile) return null;
+    return { user, profile };
+  } catch {
+    return null;
+  }
 }
 
 export async function requireAuth(): Promise<AuthContext> {
