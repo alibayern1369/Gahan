@@ -18,6 +18,7 @@ declare
   v_profile public.profiles;
   v_set     public.app_settings;
   v_wp      public.workplaces;
+  v_wp_id   bigint;
   v_maxacc  integer;
   v_dist    double precision;
 begin
@@ -30,8 +31,8 @@ begin
     return jsonb_build_object('ok', false, 'code', 'inactive_profile');
   end if;
 
-  select w.*, d.dist
-    into v_wp, v_dist
+  select ew.workplace_id, d.dist
+    into v_wp_id, v_dist
   from public.employee_workplaces ew
   join public.workplaces w on w.id = ew.workplace_id
   cross join lateral (
@@ -43,9 +44,11 @@ begin
   order by d.dist asc, ew.is_primary desc, w.id asc
   limit 1;
 
-  if not found then
-    select w.*, d.dist
-      into v_wp, v_dist
+  if found then
+    select * into v_wp from public.workplaces where id = v_wp_id;
+  else
+    select ew.workplace_id, d.dist
+      into v_wp_id, v_dist
     from public.employee_workplaces ew
     join public.workplaces w on w.id = ew.workplace_id
     cross join lateral (
@@ -58,6 +61,8 @@ begin
     if not found then
       return jsonb_build_object('ok', false, 'code', 'no_workplace');
     end if;
+
+    select * into v_wp from public.workplaces where id = v_wp_id;
 
     return jsonb_build_object('ok', false, 'code', 'out_of_range',
       'distance_m', round(v_dist::numeric, 1), 'radius_m', v_wp.radius_m);
@@ -98,6 +103,7 @@ declare
   v_profile   public.profiles;
   v_settings  public.app_settings;
   v_wp        public.workplaces;
+  v_wp_id     bigint;
   v_sched     public.work_schedules;
   v_has_sched boolean := false;
   v_open      public.attendance_sessions;
@@ -146,8 +152,8 @@ begin
   select * into v_settings from public.app_settings where id limit 1;
 
   -- Match closest assigned workplace within its radius
-  select w.*, d.dist
-    into v_wp, v_dist
+  select ew.workplace_id, d.dist
+    into v_wp_id, v_dist
   from public.employee_workplaces ew
   join public.workplaces w on w.id = ew.workplace_id
   cross join lateral (
@@ -159,9 +165,11 @@ begin
   order by d.dist asc, ew.is_primary desc, w.id asc
   limit 1;
 
-  if not found then
-    select w.*, d.dist
-      into v_wp, v_dist
+  if found then
+    select * into v_wp from public.workplaces where id = v_wp_id;
+  else
+    select ew.workplace_id, d.dist
+      into v_wp_id, v_dist
     from public.employee_workplaces ew
     join public.workplaces w on w.id = ew.workplace_id
     cross join lateral (
@@ -174,6 +182,8 @@ begin
     if not found then
       return jsonb_build_object('ok', false, 'code', 'no_workplace');
     end if;
+
+    select * into v_wp from public.workplaces where id = v_wp_id;
 
     perform public._flag_suspicious(v_uid, 'out_of_range_attempt',
       jsonb_build_object('lat', p_latitude, 'lng', p_longitude,
