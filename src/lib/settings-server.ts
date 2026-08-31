@@ -15,6 +15,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   workweek_days: [0, 1, 2, 3, 4],
   default_work_hours: 8,
   grace_minutes: 10,
+  annual_sick_days: 14,
+  annual_entitlement_days: 26,
   logo_light_path: null,
   logo_dark_path: null,
   favicon_path: null,

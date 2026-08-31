@@ -25,6 +25,8 @@ const settingsSchema = z.object({
   workweek_days: z.array(z.number().int().min(0).max(6)).min(1).max(7),
   default_work_hours: z.number().min(1).max(16),
   grace_minutes: z.number().int().min(0).max(240),
+  annual_sick_days: z.number().int().min(0).max(365),
+  annual_entitlement_days: z.number().int().min(0).max(365),
 });
 
 export async function updateSettingsAction(input: unknown): Promise<ActionResult> {

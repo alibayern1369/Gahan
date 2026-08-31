@@ -91,6 +91,37 @@ export interface AttendanceSession {
   updated_at: string;
 }
 
+export type LeaveType = "sick" | "entitlement" | "unpaid";
+export type LeaveDurationType = "daily" | "hourly";
+export type LeaveRequestStatus = "pending" | "approved" | "rejected";
+
+export interface LeaveRequest {
+  id: number;
+  profile_id: string;
+  leave_type: LeaveType;
+  duration_type: LeaveDurationType;
+  start_date: string;
+  end_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  description: string;
+  status: LeaveRequestStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IranHoliday {
+  id: number;
+  holiday_date: string;
+  title: string;
+  is_holiday: boolean;
+  jalali_year: number | null;
+  fetched_at: string;
+}
+
 export interface AppSettings {
   id: boolean;
   organization_name: string;
@@ -103,6 +134,8 @@ export interface AppSettings {
   workweek_days: number[]; // Persian index 0=شنبه..6=جمعه
   default_work_hours: number;
   grace_minutes: number;
+  annual_sick_days: number;
+  annual_entitlement_days: number;
   logo_light_path: string | null;
   logo_dark_path: string | null;
   favicon_path: string | null;

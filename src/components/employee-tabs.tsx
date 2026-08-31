@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { History, Home, UserRound } from "lucide-react";
+import { History, Home, CalendarHeart, UserRound } from "lucide-react";
 
 const TABS = [
   { href: "/app", label: "خانه", Icon: Home, exact: true },
+  { href: "/app/leave", label: "مرخصی", Icon: CalendarHeart },
   { href: "/app/history", label: "سوابق", Icon: History },
   { href: "/app/profile", label: "حساب", Icon: UserRound },
 ] as const;

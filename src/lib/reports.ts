@@ -94,6 +94,7 @@ export interface EmployeeSummaryRow {
   expected_days: number;
   present_days: number;
   absent_days: number;
+  leave_days: number;
   late_days: number;
   late_minutes_total: number;
   early_leaves: number;
@@ -118,10 +119,20 @@ export async function getEmployeeSummary(
   return (data ?? []) as EmployeeSummaryRow[];
 }
 
-/** Short-lived signed URL for a private selfie (admins/owners only per RLS). */
+/** Short-lived signed URL for a private selfie. Falls back to admin proxy route. */
 export async function getSelfieUrl(path: string, expiresIn = 300): Promise<string | null> {
   if (!path) return null;
+  try {
+    const { getServiceClient } = await import("@/lib/supabase/service");
+    const { data, error } = await getServiceClient()
+      .storage.from("selfies")
+      .createSignedUrl(path, expiresIn);
+    if (!error && data?.signedUrl) return data.signedUrl;
+  } catch {
+    // fall through
+  }
   const supabase = await createClient();
   const { data } = await supabase.storage.from("selfies").createSignedUrl(path, expiresIn);
-  return data?.signedUrl ?? null;
+  if (data?.signedUrl) return data.signedUrl;
+  return `/api/admin/selfie?path=${encodeURIComponent(path)}`;
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   CalendarClock,
+  CalendarHeart,
   ClipboardList,
   FileBarChart,
   LayoutDashboard,
@@ -22,6 +23,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 const NAV = [
   { href: "/admin", label: "داشبورد", Icon: LayoutDashboard },
   { href: "/admin/today", label: "حضور امروز", Icon: ClipboardList },
+  { href: "/admin/leave", label: "مرخصی", Icon: CalendarHeart },
   { href: "/admin/employees", label: "کارمندان", Icon: Users },
   { href: "/admin/reports", label: "گزارش‌ها", Icon: FileBarChart },
   { href: "/admin/workplaces", label: "موقعیت‌های کاری", Icon: Building2 },

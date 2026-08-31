@@ -1,6 +1,7 @@
 import { AdminPageHeader } from "@/components/admin/admin-shell";
 import { SettingsForm, type SettingsValues } from "@/components/admin/settings-form";
 import { BrandingPanel, CleanupTriggerButton, type BrandingSlot } from "@/components/admin/branding-panel";
+import { BackupPanel } from "@/components/admin/backup-panel";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { brandingPublicUrl, getSettings } from "@/lib/settings-server";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +14,14 @@ export default async function SettingsPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = sp.tab === "branding" ? "branding" : sp.tab === "audit" ? "audit" : "general";
+  const tab =
+    sp.tab === "branding"
+      ? "branding"
+      : sp.tab === "audit"
+        ? "audit"
+        : sp.tab === "backup"
+          ? "backup"
+          : "general";
   const settings = await getSettings();
 
   const slots: BrandingSlot[] = [
@@ -71,6 +79,8 @@ export default async function SettingsPage({
                 workweek_days: settings.workweek_days,
                 default_work_hours: Number(settings.default_work_hours),
                 grace_minutes: settings.grace_minutes,
+                annual_sick_days: settings.annual_sick_days ?? 14,
+                annual_entitlement_days: settings.annual_entitlement_days ?? 26,
               } satisfies SettingsValues
             }
           />
@@ -92,6 +102,8 @@ export default async function SettingsPage({
       ) : null}
 
       {tab === "audit" ? <AuditLog /> : null}
+
+      {tab === "backup" ? <BackupPanel /> : null}
     </>
   );
 }
@@ -100,6 +112,7 @@ function TabNav({ active }: { active: string }) {
   const tabs = [
     { key: "general", label: "عمومی" },
     { key: "branding", label: "برندینگ و لوگوها" },
+    { key: "backup", label: "بکاپ و بازیابی" },
     { key: "audit", label: "لاگ ممیزی" },
   ];
   return (

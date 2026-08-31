@@ -20,6 +20,8 @@ export interface SettingsValues {
   workweek_days: number[];
   default_work_hours: number;
   grace_minutes: number;
+  annual_sick_days: number;
+  annual_entitlement_days: number;
 }
 
 export function SettingsForm({ initial }: { initial: SettingsValues }) {
@@ -47,6 +49,8 @@ export function SettingsForm({ initial }: { initial: SettingsValues }) {
       default_work_hours: Number(fd.get("default_work_hours")),
       grace_minutes: Number(fd.get("grace_minutes")),
       workweek_days: days,
+      annual_sick_days: Number(fd.get("annual_sick_days")),
+      annual_entitlement_days: Number(fd.get("annual_entitlement_days")),
     });
     setPending(false);
     if (result.ok) {
@@ -96,6 +100,14 @@ export function SettingsForm({ initial }: { initial: SettingsValues }) {
         <div>
           <FieldLabel htmlFor="st-grace" hint="دقیقه">گرِیس تأخیر پیش‌فرض</FieldLabel>
           <Input id="st-grace" name="grace_minutes" type="number" dir="ltr" min={0} max={240} defaultValue={initial.grace_minutes} />
+        </div>
+        <div>
+          <FieldLabel htmlFor="st-sick" hint="روز در سال">مرخصی استعلاجی مجاز</FieldLabel>
+          <Input id="st-sick" name="annual_sick_days" type="number" dir="ltr" min={0} max={365} defaultValue={initial.annual_sick_days} />
+        </div>
+        <div>
+          <FieldLabel htmlFor="st-ent" hint="روز در سال">مرخصی استحقاقی مجاز</FieldLabel>
+          <Input id="st-ent" name="annual_entitlement_days" type="number" dir="ltr" min={0} max={365} defaultValue={initial.annual_entitlement_days} />
         </div>
       </div>
 

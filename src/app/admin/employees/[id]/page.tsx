@@ -8,6 +8,7 @@ import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createClient } from "@/lib/supabase/server";
 import { getEmployeeSummary } from "@/lib/reports";
+import { getLeaveBalance } from "@/lib/actions/leave";
 import { dateToJalali } from "@/lib/jalali";
 import { faNum, formatClockDuration, timeInTz } from "@/lib/format";
 import { getSettings } from "@/lib/settings-server";
@@ -47,6 +48,7 @@ export default async function EmployeeDetailPage({
 
   const summaries = await getEmployeeSummary(monthStartISO, todayISO);
   const summary = summaries.find((s) => s.profile_id === userId) ?? null;
+  const leaveBalance = await getLeaveBalance(userId);
 
   const { data: recent } = await supabase
     .from("attendance_sessions")
@@ -86,10 +88,13 @@ export default async function EmployeeDetailPage({
       />
 
       {/* summary cards */}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         <SummaryBox label="روزهای کاری انتظاری (ماه)" value={faNum(summary?.expected_days ?? 0)} />
         <SummaryBox label="حاضر" value={faNum(summary?.present_days ?? 0)} tone="success" />
         <SummaryBox label="غایب" value={faNum(summary?.absent_days ?? 0)} tone={(summary?.absent_days ?? 0) > 0 ? "danger" : undefined} />
+        <SummaryBox label="مرخصی (ماه)" value={faNum(summary?.leave_days ?? 0)} tone="info" />
+        <SummaryBox label="استحقاقی باقی" value={faNum(leaveBalance?.entitlement_remaining ?? 0)} />
+        <SummaryBox label="استعلاجی باقی" value={faNum(leaveBalance?.sick_remaining ?? 0)} />
         <SummaryBox label="مجموع تأخیر" value={formatClockDuration(Number(summary?.late_minutes_total ?? 0))} tone={(summary?.late_minutes_total ?? 0) > 0 ? "warning" : undefined} />
       </div>
 
@@ -130,11 +135,12 @@ export default async function EmployeeDetailPage({
   );
 }
 
-function SummaryBox({ label, value, tone }: { label: string; value: string; tone?: "success" | "warning" | "danger" }) {
+function SummaryBox({ label, value, tone }: { label: string; value: string; tone?: "success" | "warning" | "danger" | "info" }) {
   const tones: Record<string, string> = {
     success: "text-mint-500",
     warning: "text-amber-500",
     danger: "text-rose-500",
+    info: "text-sky-500",
   };
   return (
     <GlassCard className="p-3.5">
