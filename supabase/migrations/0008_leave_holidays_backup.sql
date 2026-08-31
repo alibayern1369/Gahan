@@ -280,6 +280,9 @@ as $$
 $$;
 
 -- ---------- update report_employee_summary with holidays + leave ----------
+-- Must drop first: PostgreSQL cannot change OUT/return row type via CREATE OR REPLACE.
+drop function if exists public.report_employee_summary(date, date, uuid);
+
 create or replace function public.report_employee_summary(
   p_from date,
   p_to date,
@@ -393,6 +396,8 @@ begin
   end loop;
 end;
 $$;
+
+revoke execute on function public.report_employee_summary(date, date, uuid) from public, anon;
 
 -- ---------- upsert holidays (admin/service) ----------
 create or replace function public.upsert_iran_holidays(p_holidays jsonb)
