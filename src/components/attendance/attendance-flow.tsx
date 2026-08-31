@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { CameraCapture } from "./camera-capture";
-import { captureAndCompress, getAccuratePosition, type GeoFix } from "./selfie-pipeline";
+import { getAccuratePosition, type GeoFix } from "./selfie-pipeline";
 import { attendanceErrorMessage } from "@/lib/errors";
 import { getClient } from "@/lib/supabase/client";
 import {
@@ -125,8 +125,7 @@ export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, work
       const { data: regId, error: regError } = await supabase.rpc("register_photo_upload", { p_path: path });
       if (regError || !regId) throw new Error("register_failed");
 
-      const compressed = await captureAndCompress(blob); // idempotent re-encode guard
-      const { error: upError } = await supabase.storage.from("selfies").upload(path, compressed, {
+      const { error: upError } = await supabase.storage.from("selfies").upload(path, blob, {
         contentType: "image/jpeg",
         cacheControl: "3600",
         upsert: false,
@@ -249,7 +248,7 @@ export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, work
           عکس شما فقط برای تأیید حضور ذخیره می‌شود و پس از حدود یک ماه به‌صورت خودکار حذف خواهد شد.
         </p>
         <div className="grid grid-cols-2 gap-2 pb-1">
-          <Button variant="secondary" onClick={retake} disabled>
+          <Button variant="secondary" onClick={retake}>
             <RotateCcw className="size-4" aria-hidden /> عکس مجدد
           </Button>
           <Button variant={isCheckIn ? "success" : "danger"} loading={false} onClick={confirmSubmit}>

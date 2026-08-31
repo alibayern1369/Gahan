@@ -27,6 +27,8 @@ export function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<CameraState>("starting");
   const [busy, setBusy] = useState(false);
+  const [frameReady, setFrameReady] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,15 +81,46 @@ export function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (state !== "live") {
+      setFrameReady(false);
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) return;
+
+    const check = () => {
+      setFrameReady(
+        video.videoWidth >= 64 &&
+          video.videoHeight >= 64 &&
+          video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      );
+    };
+
+    video.addEventListener("loadeddata", check);
+    video.addEventListener("playing", check);
+    video.addEventListener("canplay", check);
+    check();
+
+    return () => {
+      video.removeEventListener("loadeddata", check);
+      video.removeEventListener("playing", check);
+      video.removeEventListener("canplay", check);
+    };
+  }, [state]);
+
   const shoot = useCallback(async () => {
     const video = videoRef.current;
     if (!video || state !== "live") return;
     setBusy(true);
+    setCaptureError(null);
     try {
       const { captureAndCompress } = await import("./selfie-pipeline");
       const flip = isMobileFrontCamera();
       const blob = await captureAndCompress(video, 1024, 230 * 1024, flip);
       onCapture(blob);
+    } catch {
+      setCaptureError("دوربین هنوز آماده نیست. چند ثانیه صبر کنید و دوباره «عکس بگیر» را بزنید.");
     } finally {
       setBusy(false);
     }
@@ -153,12 +186,18 @@ export function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
 
       <input ref={fileRef} type="file" accept="image/*" capture="user" onChange={onFile} hidden />
 
+      {captureError ? (
+        <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-center text-[11px] leading-6 text-amber-700 dark:text-amber-300">
+          {captureError}
+        </p>
+      ) : null}
+
       {state === "live" ? (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span />
-          <Button size="lg" onClick={shoot} loading={busy} className="rounded-full px-10">
+          <Button size="lg" onClick={shoot} loading={busy} disabled={!frameReady} className="rounded-full px-10">
             {!busy && <SwitchCamera className="size-5" aria-hidden />}
-            عکس بگیر
+            {frameReady ? "عکس بگیر" : "آماده‌سازی دوربین…"}
           </Button>
           <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy} type="button">
             انصراف
