@@ -1,14 +1,10 @@
 import { CalendarHeart } from "lucide-react";
 import { LeavePanel } from "@/components/leave/leave-panel";
 import { getLeaveBalance, getMyLeaveRequests } from "@/lib/actions/leave";
-import { syncIranHolidaysToDb } from "@/lib/iran-holidays";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeavePage() {
-  // ensure holidays are synced on first visit
-  await syncIranHolidaysToDb().catch(() => undefined);
-
   const [balance, requests] = await Promise.all([getLeaveBalance(), getMyLeaveRequests()]);
 
   return (

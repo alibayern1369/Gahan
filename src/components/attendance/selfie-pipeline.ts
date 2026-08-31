@@ -9,7 +9,8 @@
 export async function captureAndCompress(
   source: HTMLVideoElement | Blob,
   maxDim = 1024,
-  targetBytes = 230 * 1024
+  targetBytes = 230 * 1024,
+  flipHorizontal = false
 ): Promise<Blob> {
   const bitmap = await loadBitmap(source);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
@@ -21,6 +22,10 @@ export async function captureAndCompress(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas_unavailable");
+  if (flipHorizontal) {
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(bitmap as CanvasImageSource, 0, 0, w, h);
   if ("close" in bitmap && typeof bitmap.close === "function") bitmap.close();
 

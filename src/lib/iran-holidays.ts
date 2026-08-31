@@ -76,13 +76,22 @@ export async function syncIranHolidaysToDb(): Promise<number> {
   const now = new Date();
   const jy = dateToJalali(now, settings.timezone).jy;
 
+  const service = getServiceClient();
+  const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
+
+  const { count } = await service
+    .from("iran_holidays")
+    .select("id", { count: "exact", head: true })
+    .in("jalali_year", [jy, jy + 1])
+    .gte("fetched_at", weekAgo);
+
+  if ((count ?? 0) >= 10) return count ?? 0;
+
   const all: HolidayEntry[] = [];
   for (const year of [jy, jy + 1]) {
     const holidays = await fetchIranHolidays(year);
     all.push(...holidays);
   }
-
-  const service = getServiceClient();
 
   for (const h of all) {
     const { error } = await service.from("iran_holidays").upsert(

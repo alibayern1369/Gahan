@@ -11,6 +11,11 @@ export interface CameraCaptureProps {
 
 type CameraState = "starting" | "live" | "denied" | "unavailable" | "insecure" | "unsupported";
 
+/** Front cameras on mobile often deliver a mirrored feed; flip preview + capture to show true orientation. */
+function isMobileFrontCamera(): boolean {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
 /**
  * Front-facing camera capture with graceful degradation:
  * getUserMedia → file input with capture attribute (works on iOS/Android even
@@ -80,7 +85,8 @@ export function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
     setBusy(true);
     try {
       const { captureAndCompress } = await import("./selfie-pipeline");
-      const blob = await captureAndCompress(video);
+      const flip = isMobileFrontCamera();
+      const blob = await captureAndCompress(video, 1024, 230 * 1024, flip);
       onCapture(blob);
     } finally {
       setBusy(false);
@@ -113,7 +119,7 @@ export function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
           playsInline
           muted
           autoPlay
-          className={`size-full object-cover ${state === "live" ? "" : "hidden"}`}
+          className={`size-full object-cover ${state === "live" && isMobileFrontCamera() ? "-scale-x-100" : ""} ${state === "live" ? "" : "hidden"}`}
           aria-label="دوربین سلفی"
         />
 
