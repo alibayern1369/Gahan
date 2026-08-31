@@ -6,7 +6,8 @@ import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/server";
-import { getReportSessions, getSelfieUrl, type SessionRow } from "@/lib/reports";
+import { getReportSessions, type SessionRow } from "@/lib/reports";
+import { AdminSelfieImage } from "@/components/admin/selfie-image";
 import { dateToJalali, JALALI_MONTHS, persianWeekdayIndex, PERSIAN_WEEKDAYS } from "@/lib/jalali";
 import { faNum, formatClockDuration, jalaliDayBoundsUTC, timeInTz } from "@/lib/format";
 import { getSettings } from "@/lib/settings-server";
@@ -202,7 +203,12 @@ function TodayRow({ s, timezone }: { s: SessionRow; timezone: string }) {
         {s.checkin_photo_deleted ? (
           <Badge tone="neutral">حذف‌شده</Badge>
         ) : s.checkin_photo_path ? (
-          <SelfieThumb path={s.checkin_photo_path} name={s.full_name} />
+          <AdminSelfieImage
+            path={s.checkin_photo_path}
+            label={`سلفی ${s.full_name}`}
+            showLabel={false}
+            className="size-9 rounded-lg object-cover ring-1 ring-black/10 dark:ring-white/10"
+          />
         ) : (
           <span className="text-xs text-faint">—</span>
         )}
@@ -213,15 +219,6 @@ function TodayRow({ s, timezone }: { s: SessionRow; timezone: string }) {
         </Link>
       </td>
     </tr>
-  );
-}
-
-async function SelfieThumb({ path, name }: { path: string; name: string }) {
-  const url = await getSelfieUrl(path, 240);
-  if (!url) return <span className="text-xs text-faint">—</span>;
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt={`سلفی ${name}`} loading="lazy" className="size-9 rounded-lg object-cover ring-1 ring-black/10 dark:ring-white/10" />
   );
 }
 

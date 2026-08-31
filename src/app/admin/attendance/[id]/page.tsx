@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Fingerprint, MapPin, ShieldCheck, Smartphone, TriangleAlert } from "lucide-react";
+import { AdminSelfieImage } from "@/components/admin/selfie-image";
 import { AdminPageHeader } from "@/components/admin/admin-shell";
 import { AttendanceAdjustForm } from "@/components/admin/attendance-adjust-form";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { getSelfieUrl } from "@/lib/reports";
 import { dateToJalali } from "@/lib/jalali";
 import { faNum, formatClockDuration, formatJalaliDateTime } from "@/lib/format";
 import { getSettings } from "@/lib/settings-server";
@@ -33,13 +33,7 @@ export default async function AttendanceDetailPage({
 
   if (!session) notFound();
 
-  const [checkinUrl, checkoutUrl, adjustments, suspicious] = await Promise.all([
-    session.checkin_photo_path && !session.checkin_photo_deleted_at
-      ? getSelfieUrl(session.checkin_photo_path, 600)
-      : null,
-    session.checkout_photo_path && !session.checkout_photo_deleted_at
-      ? getSelfieUrl(session.checkout_photo_path, 600)
-      : null,
+  const [adjustments, suspicious] = await Promise.all([
     supabase
       .from("admin_adjustments")
       .select("*")
@@ -108,8 +102,8 @@ export default async function AttendanceDetailPage({
           <GlassCard className="p-5">
             <SectionTitle title="سلفی‌های رکورد" subtitle="دسترسی خصوصی با لینک امضاشده موقت" icon={<Fingerprint className="size-4 text-brand-500" />} />
             <div className="flex flex-wrap gap-4">
-              <SelfieBox url={checkinUrl} label="سلفی ورود" deleted={!!session.checkin_photo_deleted_at} hasPath={!!session.checkin_photo_path} />
-              <SelfieBox url={checkoutUrl} label="سلفی خروج" deleted={!!session.checkout_photo_deleted_at} hasPath={!!session.checkout_photo_path} />
+              <SelfieBox path={session.checkin_photo_path} label="سلفی ورود" deleted={!!session.checkin_photo_deleted_at} />
+              <SelfieBox path={session.checkout_photo_path} label="سلفی خروج" deleted={!!session.checkout_photo_deleted_at} />
             </div>
             <p className="mt-3 text-[11px] text-faint">
               عکس‌ها پس از حدود {faNum(settings.selfie_retention_days)} روز به‌صورت خودکار حذف می‌شوند؛ داده‌های رکورد باقی می‌مانند.
@@ -193,8 +187,8 @@ function Info({
   );
 }
 
-function SelfieBox({ url, label, deleted, hasPath }: { url: string | null; label: string; deleted: boolean; hasPath: boolean }) {
-  if (!hasPath || deleted) {
+function SelfieBox({ path, label, deleted }: { path: string | null; label: string; deleted: boolean }) {
+  if (!path || deleted) {
     return (
       <div className="flex h-40 w-32 flex-col items-center justify-center gap-2 rounded-2xl bg-black/5 text-center dark:bg-white/5">
         <Badge tone="neutral">{deleted ? "حذف‌شده" : "بدون عکس"}</Badge>
@@ -202,16 +196,7 @@ function SelfieBox({ url, label, deleted, hasPath }: { url: string | null; label
       </div>
     );
   }
-  if (!url) {
-    return <div className="h-40 w-32 rounded-2xl skeleton" aria-label={`${label} در حال بارگذاری`} />;
-  }
-  return (
-    <figure>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={label} className="h-40 w-32 rounded-2xl object-cover ring-1 ring-black/10 dark:ring-white/10" />
-      <figcaption className="mt-1 text-center text-[10px] text-faint">{label}</figcaption>
-    </figure>
-  );
+  return <AdminSelfieImage path={path} label={label} />;
 }
 
 function osmEmbedUrl(lat: number, lng: number): string {
