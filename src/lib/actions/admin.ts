@@ -6,6 +6,7 @@ import { getAdminOrNull } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { getServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeUsername, toAuthEmail } from "@/lib/username";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -179,38 +180,33 @@ export async function deleteScheduleAction(id: number): Promise<ActionResult> {
    Employees
    ============================================================ */
 
+const usernameSchema = z.string().trim().min(1, "نام کاربری الزامی است.").max(80);
+const passwordSchema = z.string().min(1, "گذرواژه الزامی است.").max(128);
+
 const newEmployeeSchema = z.object({
   first_name: z.string().trim().min(1).max(80),
   last_name: z.string().trim().min(1).max(80),
   employee_code: z.string().trim().max(40).optional().or(z.literal("")),
-  email: z.string().email().max(200),
+  username: usernameSchema,
+  password: passwordSchema,
   phone: z.string().trim().max(30).optional().or(z.literal("")),
   hired_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
-  workplace_id: z.number().int().positive().nullable(),
+  workplace_ids: z.array(z.number().int().positive()).default([]),
   schedule_id: z.number().int().positive().nullable(),
 });
 
-const editEmployeeSchema = newEmployeeSchema.omit({ email: true }).extend({
+const editEmployeeSchema = newEmployeeSchema.omit({ password: true }).extend({
   user_id: z.string().uuid(),
-  email: z.string().email().max(200),
   employment_status: z.enum(["active", "inactive"]),
   reset_password: z.boolean(),
+  new_password: z.string().min(1).max(128).optional(),
 });
 
-function generateTempPassword(): string {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
-  let out = "";
-  const bytes = new Uint8Array(14);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < bytes.length; i += 1) out += alphabet[bytes[i] % alphabet.length];
-  return out;
-}
-
-/** Creates the auth user + profile + assignments. Returns a one-time temp password. */
+/** Creates the auth user + profile + assignments. */
 export async function createEmployeeAction(
   input: unknown
-): Promise<{ ok: true; tempPassword: string } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const adminCtx = await getAdminOrNull();
   if (!adminCtx) return { ok: false, error: "دسترسی غیرمجاز." };
 
@@ -219,11 +215,12 @@ export async function createEmployeeAction(
 
   const v = parsed.data;
   const service = getServiceClient();
-  const tempPassword = generateTempPassword();
+  const username = normalizeUsername(v.username);
+  const authEmail = toAuthEmail(username);
 
   const { data: created, error: createError } = await service.auth.admin.createUser({
-    email: v.email.toLowerCase(),
-    password: tempPassword,
+    email: authEmail,
+    password: v.password,
     email_confirm: true,
   });
 
@@ -231,7 +228,7 @@ export async function createEmployeeAction(
     console.error("[createEmployee/auth]", createError?.message);
     const msg = String(createError?.message ?? "");
     if (msg.includes("already registered") || msg.includes("already exists")) {
-      return { ok: false, error: "این ایمیل قبلاً ثبت شده است." };
+      return { ok: false, error: "این نام کاربری قبلاً ثبت شده است." };
     }
     return { ok: false, error: "ساخت حساب کاربری ناموفق بود." };
   }
@@ -243,7 +240,7 @@ export async function createEmployeeAction(
     first_name: v.first_name,
     last_name: v.last_name,
     employee_code: v.employee_code || null,
-    email: v.email.toLowerCase(),
+    email: username,
     phone: v.phone || null,
     hired_at: v.hired_at || null,
     notes: v.notes || null,
@@ -257,12 +254,14 @@ export async function createEmployeeAction(
     return { ok: false, error: persianError(profileError.message) };
   }
 
-  if (v.workplace_id) {
-    await supabase.from("employee_workplaces").insert({
-      profile_id: created.user.id,
-      workplace_id: v.workplace_id,
-      is_primary: true,
-    });
+  if (v.workplace_ids.length > 0) {
+    await supabase.from("employee_workplaces").insert(
+      v.workplace_ids.map((workplaceId, index) => ({
+        profile_id: created.user.id,
+        workplace_id: workplaceId,
+        is_primary: index === 0,
+      }))
+    );
   }
   if (v.schedule_id) {
     await supabase.from("employee_schedules").insert({
@@ -275,16 +274,16 @@ export async function createEmployeeAction(
     action: "employee.create",
     entity: "profiles",
     entityId: created.user.id,
-    newValue: { email: v.email, name: `${v.first_name} ${v.last_name}` },
+    newValue: { username, name: `${v.first_name} ${v.last_name}` },
   });
 
   revalidatePath("/admin/employees");
-  return { ok: true, tempPassword };
+  return { ok: true };
 }
 
 export async function updateEmployeeAction(
   input: unknown
-): Promise<{ ok: true; tempPassword?: string } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const adminCtx = await getAdminOrNull();
   if (!adminCtx) return { ok: false, error: "دسترسی غیرمجاز." };
 
@@ -292,8 +291,13 @@ export async function updateEmployeeAction(
   if (!parsed.success) return { ok: false, error: "اطلاعات کارمند معتبر نیست." };
 
   const v = parsed.data;
+  if (v.reset_password && !v.new_password) {
+    return { ok: false, error: "برای بازنشانی گذرواژه، گذرواژه جدید را وارد کنید." };
+  }
+
   const supabase = await createClient();
-  let tempPassword: string | undefined;
+  const username = normalizeUsername(v.username);
+  const authEmail = toAuthEmail(username);
 
   const { data: before } = await supabase
     .from("profiles")
@@ -308,7 +312,7 @@ export async function updateEmployeeAction(
       first_name: v.first_name,
       last_name: v.last_name,
       employee_code: v.employee_code || null,
-      email: v.email.toLowerCase(),
+      email: username,
       phone: v.phone || null,
       hired_at: v.hired_at || null,
       notes: v.notes || null,
@@ -318,42 +322,44 @@ export async function updateEmployeeAction(
 
   if (updError) return { ok: false, error: persianError(updError.message) };
 
-  if (before.email !== v.email.toLowerCase()) {
+  const beforeUsername = normalizeUsername(before.email ?? "");
+  if (beforeUsername !== username) {
     const service = getServiceClient();
     const { error: emailError } = await service.auth.admin.updateUserById(v.user_id, {
-      email: v.email.toLowerCase(),
+      email: authEmail,
     });
-    if (emailError) console.error("[updateEmployee/email]", emailError.message);
+    if (emailError) {
+      console.error("[updateEmployee/username]", emailError.message);
+      return { ok: false, error: "تغییر نام کاربری ناموفق بود." };
+    }
   }
 
-  if (v.reset_password) {
+  if (v.reset_password && v.new_password) {
     const service = getServiceClient();
-    const newPassword = generateTempPassword();
     const { error: pwError } = await service.auth.admin.updateUserById(v.user_id, {
-      password: newPassword,
+      password: v.new_password,
     });
     if (pwError) {
       console.error("[updateEmployee/password]", pwError.message);
       return { ok: false, error: "ویرایش انجام شد اما بازنشانی گذرواژه ناموفق بود." };
     }
-    tempPassword = newPassword;
     await writeAudit(adminCtx.profile.user_id, {
       action: "employee.reset_password",
       entity: "profiles",
       entityId: v.user_id,
-      meta: { note: "password regenerated — delivered out of band" },
+      meta: { note: "password reset by admin" },
     });
   }
 
-  if (v.workplace_id) {
-    await supabase.from("employee_workplaces").delete().eq("profile_id", v.user_id);
-    await supabase.from("employee_workplaces").insert({
-      profile_id: v.user_id,
-      workplace_id: v.workplace_id,
-      is_primary: true,
-    });
-  } else {
-    await supabase.from("employee_workplaces").delete().eq("profile_id", v.user_id);
+  await supabase.from("employee_workplaces").delete().eq("profile_id", v.user_id);
+  if (v.workplace_ids.length > 0) {
+    await supabase.from("employee_workplaces").insert(
+      v.workplace_ids.map((workplaceId, index) => ({
+        profile_id: v.user_id,
+        workplace_id: workplaceId,
+        is_primary: index === 0,
+      }))
+    );
   }
 
   await supabase.from("employee_schedules").delete().eq("profile_id", v.user_id);
@@ -373,5 +379,5 @@ export async function updateEmployeeAction(
 
   revalidatePath("/admin/employees");
   revalidatePath(`/admin/employees/${v.user_id}`);
-  return { ok: true, tempPassword };
+  return { ok: true };
 }

@@ -4,7 +4,6 @@ import { ResolveSuspiciousButton } from "@/components/admin/resolve-suspicious-b
 import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatJalaliDateTime } from "@/lib/format";
 
@@ -19,7 +18,6 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function SuspiciousPage() {
-  await requireAdmin();
   const supabase = await createClient();
 
   const { data: events } = await supabase

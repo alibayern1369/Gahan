@@ -44,25 +44,48 @@ export async function getEmployeeToday(profileId: string): Promise<TodayStatus> 
   };
 }
 
-export interface EmployeeWorkContext {
-  workplaceName: string | null;
-  workplaceLat: number | null;
-  workplaceLng: number | null;
-  radiusM: number | null;
+export interface EmployeeWorkplaceItem {
+  name: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
 }
 
-export async function getEmployeeWorkplace(profileId: string): Promise<EmployeeWorkContext> {
+export interface EmployeeWorkContext {
+  workplaces: EmployeeWorkplaceItem[];
+}
+
+export async function getEmployeeWorkplaces(profileId: string): Promise<EmployeeWorkContext> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("employee_workplaces")
-    .select("workplaces(name, latitude, longitude, radius_m)")
+    .select("is_primary, workplaces(name, latitude, longitude, radius_m, is_active)")
     .eq("profile_id", profileId)
-    .order("is_primary", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ workplaces: { name: string; latitude: number; longitude: number; radius_m: number } | null }>();
+    .order("is_primary", { ascending: false });
 
-  const w = Array.isArray(data?.workplaces) ? data?.workplaces[0] : data?.workplaces;
-  return w
-    ? { workplaceName: w.name, workplaceLat: w.latitude, workplaceLng: w.longitude, radiusM: w.radius_m }
-    : { workplaceName: null, workplaceLat: null, workplaceLng: null, radiusM: null };
+  const workplaces: EmployeeWorkplaceItem[] = [];
+  for (const row of data ?? []) {
+    const wp = Array.isArray(row.workplaces) ? row.workplaces[0] : row.workplaces;
+    if (!wp || !wp.is_active) continue;
+    workplaces.push({
+      name: wp.name,
+      latitude: wp.latitude,
+      longitude: wp.longitude,
+      radiusM: wp.radius_m,
+    });
+  }
+
+  return { workplaces };
+}
+
+/** @deprecated use getEmployeeWorkplaces */
+export async function getEmployeeWorkplace(profileId: string) {
+  const { workplaces } = await getEmployeeWorkplaces(profileId);
+  const first = workplaces[0];
+  return {
+    workplaceName: first?.name ?? null,
+    workplaceLat: first?.latitude ?? null,
+    workplaceLng: first?.longitude ?? null,
+    radiusM: first?.radiusM ?? null,
+  };
 }

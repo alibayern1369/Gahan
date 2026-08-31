@@ -5,7 +5,6 @@ import { AdminPageHeader } from "@/components/admin/admin-shell";
 import { AttendanceAdjustForm } from "@/components/admin/attendance-adjust-form";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getSelfieUrl } from "@/lib/reports";
 import { dateToJalali } from "@/lib/jalali";
@@ -19,7 +18,6 @@ export default async function AttendanceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
   const { id } = await params;
   const sessionId = Number(id);
   if (!Number.isInteger(sessionId)) notFound();

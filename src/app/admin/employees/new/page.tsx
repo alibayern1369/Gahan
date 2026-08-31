@@ -1,12 +1,10 @@
 import { AdminPageHeader } from "@/components/admin/admin-shell";
 import { NewEmployeeForm } from "@/components/admin/new-employee-form";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewEmployeePage() {
-  await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: workplaces }, { data: schedules }] = await Promise.all([

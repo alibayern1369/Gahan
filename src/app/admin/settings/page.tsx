@@ -2,7 +2,6 @@ import { AdminPageHeader } from "@/components/admin/admin-shell";
 import { SettingsForm, type SettingsValues } from "@/components/admin/settings-form";
 import { BrandingPanel, CleanupTriggerButton, type BrandingSlot } from "@/components/admin/branding-panel";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
-import { requireAdmin } from "@/lib/auth";
 import { brandingPublicUrl, getSettings } from "@/lib/settings-server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,7 +12,6 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  await requireAdmin();
   const sp = await searchParams;
   const tab = sp.tab === "branding" ? "branding" : sp.tab === "audit" ? "audit" : "general";
   const settings = await getSettings();
@@ -125,7 +123,6 @@ function TabNav({ active }: { active: string }) {
 }
 
 async function AuditLog() {
-  await requireAdmin();
   const supabase = await createClient();
   const { data: logs } = await supabase
     .from("audit_logs")

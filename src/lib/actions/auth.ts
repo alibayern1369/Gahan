@@ -4,10 +4,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { toAuthEmail } from "@/lib/username";
 
 const credentialsSchema = z.object({
-  email: z.string().email().max(200),
-  password: z.string().min(6).max(128),
+  username: z.string().trim().min(1).max(80),
+  password: z.string().min(1).max(128),
 });
 
 // Naive in-memory throttle (per server instance) — sufficient for ~50 users.
@@ -30,17 +31,17 @@ export interface LoginState {
 
 export async function signInAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const parsed = credentialsSchema.safeParse({
-    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+    username: String(formData.get("username") ?? "").trim(),
     password: String(formData.get("password") ?? ""),
   });
 
   if (!parsed.success) {
-    return { error: "ایمیل یا گذرواژه نامعتبر است." };
+    return { error: "نام کاربری یا گذرواژه نامعتبر است." };
   }
 
   const headerList = await headers();
   const ip = headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (throttled(`${ip}:${parsed.data.email}`)) {
+  if (throttled(`${ip}:${parsed.data.username}`)) {
     return { error: "تلاش‌های زیاد؛ لطفاً یک دقیقه بعد دوباره امتحان کنید." };
   }
 
@@ -53,10 +54,13 @@ export async function signInAction(_prev: LoginState, formData: FormData): Promi
     };
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: toAuthEmail(parsed.data.username),
+    password: parsed.data.password,
+  });
 
   if (error || !data.user) {
-    return { error: "ورود ناموفق بود. ایمیل یا گذرواژه را بررسی کنید." };
+    return { error: "ورود ناموفق بود. نام کاربری یا گذرواژه را بررسی کنید." };
   }
 
   // Resolve role + status before routing

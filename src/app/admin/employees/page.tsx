@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { displayUsername } from "@/lib/username";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,6 @@ export default async function EmployeesPage({
 }: {
   searchParams: Promise<{ q?: string; s?: string }>;
 }) {
-  await requireAdmin();
   const params = await searchParams;
   const query = (params.q ?? "").trim().toLowerCase();
   const statusFilter = params.s ?? "active";
@@ -77,7 +76,7 @@ export default async function EmployeesPage({
         <form action="/admin/employees" method="get" role="search" className="relative min-w-44 flex-1 sm:max-w-72">
           {statusFilter !== "all" ? <input type="hidden" name="s" value={statusFilter} /> : null}
           <Search className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
-          <Input name="q" defaultValue={params.q ?? ""} placeholder="جستجوی نام، کد یا ایمیل…" aria-label="جستجو" className="pr-10 py-2.5" />
+          <Input name="q" defaultValue={params.q ?? ""} placeholder="جستجوی نام، کد یا نام کاربری…" aria-label="جستجو" className="pr-10 py-2.5" />
         </form>
         <div className="flex gap-1.5">
           {[
@@ -107,7 +106,9 @@ export default async function EmployeesPage({
         ) : (
           <ul className="divide-y divide-[color:var(--border-line)]">
             {rows.map((e) => {
-              const workplaceName = e.employee_workplaces?.[0]?.workplaces?.name ?? null;
+              const workplaceNames = (e.employee_workplaces ?? [])
+                .map((ew) => ew.workplaces?.name)
+                .filter(Boolean) as string[];
               const scheduleName = e.employee_schedules?.[0]?.work_schedules?.name ?? null;
 
               return (
@@ -122,10 +123,12 @@ export default async function EmployeesPage({
                           {e.employee_code ? <span className="mr-2 text-[10px] font-normal text-faint">{e.employee_code}</span> : null}
                         </p>
                         <p dir="ltr" className="truncate text-[11px] text-secondary text-left">
-                          {e.email}
+                          {displayUsername(e.email)}
                         </p>
                         <p className="mt-1 hidden gap-1.5 sm:flex sm:flex-wrap">
-                          {workplaceName ? <Badge>{workplaceName}</Badge> : null}
+                          {workplaceNames.map((name) => (
+                            <Badge key={name}>{name}</Badge>
+                          ))}
                           {scheduleName ? <Badge tone="info">{scheduleName}</Badge> : null}
                         </p>
                       </div>

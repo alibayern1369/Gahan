@@ -2,10 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, LogIn, Mail } from "lucide-react";
+import { KeyRound, LogIn, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, FieldLabel } from "@/components/ui/input";
 import { getClient } from "@/lib/supabase/client";
+import { toAuthEmail } from "@/lib/username";
 
 export function LoginForm() {
   const router = useRouter();
@@ -18,23 +19,24 @@ export function LoginForm() {
     setError(null);
 
     const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "")
-      .trim()
-      .toLowerCase();
+    const username = String(formData.get("username") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
-    if (!email || password.length < 6) {
-      setError("ایمیل یا گذرواژه نامعتبر است.");
+    if (!username || !password) {
+      setError("نام کاربری یا گذرواژه نامعتبر است.");
       setPending(false);
       return;
     }
 
     try {
       const supabase = getClient();
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: toAuthEmail(username),
+        password,
+      });
 
       if (signInError || !data.user) {
-        setError("ورود ناموفق بود. ایمیل یا رمز عبور را بررسی کنید.");
+        setError("ورود ناموفق بود. نام کاربری یا رمز عبور را بررسی کنید.");
         return;
       }
 
@@ -70,18 +72,16 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="glass-strong rounded-3xl p-6 space-y-4">
       <div>
-        <FieldLabel htmlFor="email">ایمیل سازمانی</FieldLabel>
+        <FieldLabel htmlFor="username">نام کاربری</FieldLabel>
         <div className="relative">
-          <Mail className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
+          <User className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
           <Input
-            id="email"
-            name="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
+            id="username"
+            name="username"
+            autoComplete="username"
             dir="ltr"
             required
-            placeholder="you@example.com"
+            placeholder="username"
             className="pr-11 text-left"
           />
         </div>
@@ -97,7 +97,6 @@ export function LoginForm() {
             type="password"
             autoComplete="current-password"
             required
-            minLength={6}
             placeholder="••••••••"
             className="pr-11"
           />

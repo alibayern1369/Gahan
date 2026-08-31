@@ -6,7 +6,6 @@ import { ReportsFilters } from "@/components/admin/reports-filters";
 import { GlassCard, SectionTitle, StatCard } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getEmployeeSummary, getReportSessions, jalaliToIsoDate } from "@/lib/reports";
 import { dateToJalali, jalaliMonthLength, jalaliToGregorianDate } from "@/lib/jalali";
@@ -20,7 +19,6 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ p?: string; from?: string; to?: string; emp?: string; wp?: string; st?: string }>;
 }) {
-  await requireAdmin();
   const sp = await searchParams;
   const settings = await getSettings();
   const supabase = await createClient();

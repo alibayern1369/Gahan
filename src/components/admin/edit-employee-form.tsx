@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { FieldLabel, Input, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { updateEmployeeAction } from "@/lib/actions/admin";
+import { displayUsername } from "@/lib/username";
+import { WorkplaceMultiSelect } from "@/components/admin/workplace-multi-select";
 
 export interface EditableEmployee {
   user_id: string;
@@ -17,7 +19,7 @@ export interface EditableEmployee {
   hired_at: string | null; // ISO yyyy-mm-dd
   notes: string | null;
   employment_status: string;
-  workplace_id: number | null;
+  workplace_ids: number[];
   schedule_id: number | null;
 }
 
@@ -33,36 +35,47 @@ export function EditEmployeeForm({
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState(employee.employment_status);
   const [resetPw, setResetPw] = useState(false);
+  const [workplaceIds, setWorkplaceIds] = useState<number[]>(employee.workplace_ids);
   const router = useRouter();
   const { toast } = useToast();
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const newPassword = String(fd.get("new_password") ?? "");
+    const newPasswordConfirm = String(fd.get("new_password_confirm") ?? "");
+
+    if (resetPw) {
+      if (!newPassword) {
+        toast("error", "گذرواژه جدید را وارد کنید.");
+        return;
+      }
+      if (newPassword !== newPasswordConfirm) {
+        toast("error", "گذرواژه و تکرار آن یکسان نیست.");
+        return;
+      }
+    }
+
     setPending(true);
     const result = await updateEmployeeAction({
       user_id: employee.user_id,
       first_name: String(fd.get("first_name") ?? "").trim(),
       last_name: String(fd.get("last_name") ?? "").trim(),
       employee_code: String(fd.get("employee_code") ?? "").trim(),
-      email: String(fd.get("email") ?? "").trim().toLowerCase(),
+      username: String(fd.get("username") ?? "").trim(),
       phone: String(fd.get("phone") ?? "").trim(),
       hired_at: String(fd.get("hired_at") ?? ""),
       notes: String(fd.get("notes") ?? "").trim(),
-      workplace_id: fd.get("workplace_id") ? Number(fd.get("workplace_id")) : null,
+      workplace_ids: workplaceIds,
       schedule_id: fd.get("schedule_id") ? Number(fd.get("schedule_id")) : null,
       employment_status: status as "active" | "inactive",
       reset_password: resetPw,
+      new_password: resetPw ? newPassword : undefined,
     });
     setPending(false);
 
     if (result.ok) {
-      if (resetPw && "tempPassword" in result && result.tempPassword) {
-        await navigator.clipboard.writeText(result.tempPassword).catch(() => undefined);
-        toast("success", `گذرواژهٔ موقت جدید کپی شد: ${result.tempPassword}`);
-      } else {
-        toast("success", "اطلاعات کارمند ذخیره شد.");
-      }
+      toast("success", resetPw ? "اطلاعات و گذرواژه ذخیره شد." : "اطلاعات کارمند ذخیره شد.");
       setResetPw(false);
       router.refresh();
     } else {
@@ -82,8 +95,8 @@ export function EditEmployeeForm({
           <Input id="e-last" name="last_name" defaultValue={employee.last_name} required maxLength={80} />
         </div>
         <div>
-          <FieldLabel htmlFor="e-email">ایمیل (نام کاربری) *</FieldLabel>
-          <Input id="e-email" name="email" type="email" dir="ltr" defaultValue={employee.email ?? ""} required />
+          <FieldLabel htmlFor="e-username">نام کاربری *</FieldLabel>
+          <Input id="e-username" name="username" dir="ltr" defaultValue={displayUsername(employee.email)} required maxLength={80} />
         </div>
         <div>
           <FieldLabel htmlFor="e-code">کد کارمندی</FieldLabel>
@@ -97,14 +110,8 @@ export function EditEmployeeForm({
           <FieldLabel htmlFor="e-hired" hint="میلادی">تاریخ استخدام</FieldLabel>
           <Input id="e-hired" name="hired_at" type="date" dir="ltr" defaultValue={employee.hired_at ?? ""} />
         </div>
-        <div>
-          <FieldLabel htmlFor="e-wp">محل کاری</FieldLabel>
-          <select id="e-wp" name="workplace_id" defaultValue={employee.workplace_id ?? ""} className="glass-input w-full appearance-none rounded-2xl px-4 py-3 text-sm">
-            <option value="">— بدون محل —</option>
-            {workplaces.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
+        <div className="sm:col-span-2">
+          <WorkplaceMultiSelect workplaces={workplaces} selectedIds={workplaceIds} onChange={setWorkplaceIds} />
         </div>
         <div>
           <FieldLabel htmlFor="e-sch">برنامه کاری</FieldLabel>
@@ -122,7 +129,7 @@ export function EditEmployeeForm({
         <Textarea id="e-notes" name="notes" defaultValue={employee.notes ?? ""} maxLength={1000} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-black/[0.03] p-3.5 dark:bg-white/[0.05]">
+      <div className="space-y-3 rounded-2xl bg-black/[0.03] p-3.5 dark:bg-white/[0.05]">
         <label className="flex items-center gap-2 text-xs font-semibold">
           <input
             type="checkbox"
@@ -139,8 +146,20 @@ export function EditEmployeeForm({
             onChange={(e) => setResetPw(e.target.checked)}
             className="size-4 accent-[color:var(--color-brand-500)]"
           />
-          بازنشانی گذرواژه (موقت جدید ساخته می‌شود)
+          تغییر گذرواژه
         </label>
+        {resetPw ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <FieldLabel htmlFor="e-new-password">گذرواژه جدید</FieldLabel>
+              <Input id="e-new-password" name="new_password" type="password" dir="ltr" maxLength={128} autoComplete="new-password" />
+            </div>
+            <div>
+              <FieldLabel htmlFor="e-new-password-confirm">تکرار گذرواژه</FieldLabel>
+              <Input id="e-new-password-confirm" name="new_password_confirm" type="password" dir="ltr" maxLength={128} autoComplete="new-password" />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <Button type="submit" loading={pending}>ذخیره تغییرات</Button>

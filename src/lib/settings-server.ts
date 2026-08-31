@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { AppSettings } from "@/lib/types";
 
@@ -22,8 +23,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   updated_at: new Date(0).toISOString(),
 };
 
-/** Fetch singleton app settings; falls back to safe defaults on any failure. */
-export async function getSettings(): Promise<AppSettings> {
+async function fetchSettings(): Promise<AppSettings> {
   try {
     const { getServiceClient } = await import("@/lib/supabase/service");
     const { data } = await getServiceClient()
@@ -43,6 +43,16 @@ export async function getSettings(): Promise<AppSettings> {
   } catch {
     return DEFAULT_SETTINGS;
   }
+}
+
+const getCachedSettings = unstable_cache(fetchSettings, ["app-settings"], {
+  revalidate: 60,
+  tags: ["app-settings"],
+});
+
+/** Fetch singleton app settings; falls back to safe defaults on any failure. */
+export async function getSettings(): Promise<AppSettings> {
+  return getCachedSettings();
 }
 
 /** Public URL for an object inside the public `branding` bucket. */

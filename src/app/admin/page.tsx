@@ -14,7 +14,6 @@ import { BarChart, DonutChart } from "@/components/charts";
 import { GlassCard, SectionTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { requireAdmin } from "@/lib/auth";
 import { getDashboardStats, getReportSessions } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import { dateToJalali } from "@/lib/jalali";
@@ -24,7 +23,6 @@ import { getSettings } from "@/lib/settings-server";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  await requireAdmin();
   const settings = await getSettings();
   const stats = await getDashboardStats();
 

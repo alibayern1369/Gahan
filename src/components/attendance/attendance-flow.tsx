@@ -42,10 +42,10 @@ export interface AttendanceFlowProps {
   maxAccuracy: number;
   timezone: string;
   userId: string;
-  workplace: { name: string | null; latitude: number | null; longitude: number | null; radius: number | null };
+  workplaces: Array<{ name: string; latitude: number; longitude: number; radiusM: number }>;
 }
 
-export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, workplace }: AttendanceFlowProps) {
+export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, workplaces }: AttendanceFlowProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [fix, setFix] = useState<GeoFix | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
@@ -54,6 +54,8 @@ export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, work
   const { toast } = useToast();
 
   const isCheckIn = nextAction === "check_in";
+  const workplaceNames = workplaces.map((w) => w.name).join("، ");
+  const minRadius = workplaces.length > 0 ? Math.min(...workplaces.map((w) => w.radiusM)) : null;
 
   /* ------------------------------------------------ start: geolocation */
   const begin = useCallback(async () => {
@@ -267,7 +269,7 @@ export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, work
           <p className="mx-auto mt-2 max-w-xs text-[11px] leading-6 text-secondary">
             {phase.kind === "locating"
               ? "GPS با بالاترین دقت فعال می‌شود. اگر داخل ساختمان هستید، نزدیک پنجره بایستید تا سریع‌تر قفل شود."
-              : `فاصلهٔ شما با محل کاری «${workplace.name ?? "تعیین‌نشده"}» بررسی می‌شود.`}
+              : `فاصلهٔ شما با محل‌های مجاز (${workplaceNames || "تعیین‌نشده"}) بررسی می‌شود.`}
           </p>
         </div>
         <div className="flex justify-center gap-1.5" aria-hidden>
@@ -313,9 +315,14 @@ export function AttendanceFlow({ nextAction, maxAccuracy, timezone, userId, work
 
       <div className="flex items-center justify-center gap-1.5 text-[11px] text-faint">
         <MapPin className="size-3.5" aria-hidden />
-        {workplace.name
-          ? `${workplace.name} — شعاع مجاز ${workplace.radius?.toLocaleString("fa-IR")} متر`
+        {workplaces.length > 0
+          ? workplaces.length === 1
+            ? `${workplaces[0].name} — شعاع مجاز ${workplaces[0].radiusM.toLocaleString("fa-IR")} متر`
+            : `محل‌های مجاز: ${workplaceNames}`
           : "محل کاری تعیین نشده"}
+        {minRadius && workplaces.length > 1 ? (
+          <span className="tabular-nums"> (حداقل شعاع: {minRadius.toLocaleString("fa-IR")} م)</span>
+        ) : null}
         {distanceLabel ? <span className="tabular-nums">(دقت آخرین موقعیت: {distanceLabel.toLocaleString("fa-IR")} م)</span> : null}
       </div>
 

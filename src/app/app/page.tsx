@@ -5,18 +5,25 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { AttendanceFlow } from "@/components/attendance/attendance-flow";
 import { requireAuth } from "@/lib/auth";
 import { formatDuration, formatJalaliDateTime, formatJalaliFull, timeInTz } from "@/lib/format";
-import { getEmployeeToday, getEmployeeWorkplace } from "@/lib/employee-data";
+import { getEmployeeToday, getEmployeeWorkplaces } from "@/lib/employee-data";
 import { getSettings } from "@/lib/settings-server";
 
 export const dynamic = "force-dynamic";
 
 export default async function EmployeeHomePage() {
   const { profile } = await requireAuth();
-  const [settings, today, workplace] = await Promise.all([
+  const [settings, today, workContext] = await Promise.all([
     getSettings(),
     getEmployeeToday(profile.user_id),
-    getEmployeeWorkplace(profile.user_id),
+    getEmployeeWorkplaces(profile.user_id),
   ]);
+  const workplaces = workContext.workplaces;
+  const workplaceLabel =
+    workplaces.length === 0
+      ? null
+      : workplaces.length === 1
+        ? workplaces[0].name
+        : `${workplaces.length.toLocaleString("fa-IR")} محل`;
 
   const isCheckedIn = today.openSessionId !== null;
   const now = new Date();
@@ -84,19 +91,14 @@ export default async function EmployeeHomePage() {
         maxAccuracy={settings.max_gps_accuracy_m}
         timezone={settings.timezone}
         userId={profile.user_id}
-        workplace={{
-          name: workplace.workplaceName,
-          latitude: workplace.workplaceLat,
-          longitude: workplace.workplaceLng,
-          radius: workplace.radiusM,
-        }}
+        workplaces={workplaces}
       />
 
       {/* Context cards */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label="محل کاری من"
-          value={<span className="text-base">{workplace.workplaceName ?? "تعیین نشده"}</span>}
+          value={<span className="text-base">{workplaceLabel ?? "تعیین نشده"}</span>}
           icon={<MapPin className="size-4" />}
         />
         <StatCard
@@ -107,7 +109,7 @@ export default async function EmployeeHomePage() {
         />
       </div>
 
-      {!workplace.workplaceName ? (
+      {!workplaceLabel ? (
         <EmptyState
           icon={MapPin}
           title="محل کاری تعیین نشده"

@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportSessions, getSelfieUrl, type SessionRow } from "@/lib/reports";
 import { dateToJalali, JALALI_MONTHS, persianWeekdayIndex, PERSIAN_WEEKDAYS } from "@/lib/jalali";
@@ -29,7 +28,6 @@ export default async function TodayPage({
 }: {
   searchParams: Promise<{ f?: string; q?: string }>;
 }) {
-  await requireAdmin();
   const params = await searchParams;
   const settings = await getSettings();
   const filter = FILTERS.find((f) => f.key === (params.f ?? "all")) ?? FILTERS[0];

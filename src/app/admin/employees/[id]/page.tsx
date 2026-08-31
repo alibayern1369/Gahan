@@ -6,7 +6,6 @@ import { EditEmployeeForm, type EditableEmployee } from "@/components/admin/edit
 import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getEmployeeSummary } from "@/lib/reports";
 import { dateToJalali } from "@/lib/jalali";
@@ -20,7 +19,6 @@ export default async function EmployeeDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
   const { id: userId } = await params;
   const settings = await getSettings();
   const supabase = await createClient();
@@ -67,7 +65,7 @@ export default async function EmployeeDetailPage({
     hired_at: profile.hired_at,
     notes: profile.notes,
     employment_status: profile.employment_status,
-    workplace_id: assignments?.[0]?.workplace_id ?? null,
+    workplace_ids: (assignments ?? []).map((a) => a.workplace_id),
     schedule_id: scheduleAssign?.schedule_id ?? null,
   };
 
