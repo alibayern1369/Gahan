@@ -51,7 +51,7 @@ export default async function AdminDashboardPage() {
   }
   const chartData = Array.from(dayCounts.entries()).map(([key, value]) => {
     const [, , jd] = key.split("-").map(Number);
-    return { label: faNum(jd), value };
+    return { label: faNum(jd), value, displayValue: faNum(value) };
   });
 
   // today's recent sessions
@@ -110,7 +110,7 @@ export default async function AdminDashboardPage() {
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
         <GlassCard className="p-5 lg:col-span-2">
           <SectionTitle title="ورودهای ۷ روز گذشته" subtitle="تعداد رکورد ثبت‌شده در هر روز" />
-          <BarChart data={chartData} formatValue={(v) => faNum(v)} />
+          <BarChart data={chartData} />
         </GlassCard>
 
         <GlassCard className="p-5">

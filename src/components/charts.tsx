@@ -8,16 +8,16 @@
 export interface ChartPoint {
   label: string;
   value: number;
+  /** Pre-formatted tooltip value (server components cannot pass functions to clients). */
+  displayValue?: string;
 }
 
 export function BarChart({
   data,
   height = 160,
-  formatValue,
 }: {
   data: ChartPoint[];
   height?: number;
-  formatValue?: (v: number) => string;
 }) {
   if (data.length === 0) return null;
   const max = Math.max(...data.map((d) => d.value), 1);
@@ -29,7 +29,7 @@ export function BarChart({
           return (
             <div key={i} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
               <span className="text-[10px] font-bold tabular-nums text-secondary opacity-0 transition-opacity group-hover:opacity-100">
-                {formatValue ? formatValue(d.value) : d.value}
+                {d.displayValue ?? d.value.toLocaleString("fa-IR")}
               </span>
               <div
                 className="w-full max-w-9 rounded-t-lg bg-gradient-to-t from-brand-600/70 to-brand-400/90 transition-all duration-300 dark:from-brand-700/80 dark:to-brand-400/80"
