@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { haversineDistanceMeters, isValidCoordinate } from "@/lib/geo";
-import { computeEarlyLeaveMinutes, computeLateMinutes, computeWorkedAndOvertime } from "@/lib/schedule-math";
-import { faNum, formatClockDuration, formatDuration, jalaliDayBoundsUTC } from "@/lib/format";
+import {
+  computeEarlyLeaveMinutes,
+  computeLateMinutes,
+  computeWorkedAndOvertime,
+  rotationCycleDay,
+} from "@/lib/schedule-math";
+import { faNum, formatClockDuration, formatDuration, jalaliDayBoundsUTC, jalaliToUTC } from "@/lib/format";
+import { jalaliToGregorianDate } from "@/lib/jalali";
 
 describe("geolocation", () => {
   it("returns zero for identical points", () => {
@@ -23,11 +29,17 @@ describe("geolocation", () => {
 
 describe("schedule math", () => {
   const sched = {
+    scheduleType: "fixed" as const,
     workingDays: [0, 1, 2, 3, 4], // شنبه تا چهارشنبه
     startTime: "09:00",
     endTime: "17:00",
     graceMinutes: 10,
     expectedMinutes: 480,
+    rotationAnchorDate: null,
+    morningStartTime: null,
+    morningEndTime: null,
+    eveningStartTime: null,
+    eveningEndTime: null,
   };
 
   it("grants grace before counting lateness", () => {
@@ -49,13 +61,59 @@ describe("schedule math", () => {
   it("computes early departure and worked/overtime", () => {
     const checkin = new Date(Date.UTC(2026, 7, 24, 5, 40)); // 09:10 Tehran
     const checkout = new Date(checkin.getTime() + 9 * 3600_000 + 20 * 60_000);
-    const { worked, overtime } = computeWorkedAndOvertime(checkin, checkout, 480);
+    const { worked, overtime } = computeWorkedAndOvertime(checkin, checkout, sched);
     expect(worked).toBe(560);
     expect(overtime).toBe(80);
 
     // leaving at 16:30 on working day → 30 min early
     const earlyOut = new Date(Date.UTC(2026, 7, 24, 13, 0)); // 16:30 Tehran
     expect(computeEarlyLeaveMinutes(earlyOut, "Asia/Tehran", sched)).toBe(30);
+  });
+});
+
+describe("rotational schedule math", () => {
+  const anchorG = jalaliToGregorianDate(1405, 6, 28);
+  const anchorIso = `${anchorG.getUTCFullYear()}-${String(anchorG.getUTCMonth() + 1).padStart(2, "0")}-${String(anchorG.getUTCDate()).padStart(2, "0")}`;
+
+  const rotational = {
+    scheduleType: "rotational" as const,
+    workingDays: [0, 1, 2, 3, 4, 5, 6],
+    startTime: null,
+    endTime: null,
+    graceMinutes: 10,
+    expectedMinutes: null,
+    rotationAnchorDate: anchorIso,
+    morningStartTime: "06:00",
+    morningEndTime: "14:00",
+    eveningStartTime: "14:00",
+    eveningEndTime: "23:00",
+  };
+
+  it("cycles morning → evening → off from anchor", () => {
+    const day1 = jalaliToGregorianDate(1405, 6, 28);
+    const day2 = jalaliToGregorianDate(1405, 6, 29);
+    const day3 = jalaliToGregorianDate(1405, 6, 30);
+    const iso = (d: Date) =>
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    expect(rotationCycleDay(anchorIso, iso(day1))).toBe(0);
+    expect(rotationCycleDay(anchorIso, iso(day2))).toBe(1);
+    expect(rotationCycleDay(anchorIso, iso(day3))).toBe(2);
+  });
+
+  it("counts all evening overtime after shift end (crossing midnight)", () => {
+    const checkin = jalaliToUTC(1405, 6, 29, 22, 0, "Asia/Tehran");
+    const checkout = jalaliToUTC(1405, 6, 30, 3, 0, "Asia/Tehran");
+    const { worked, overtime } = computeWorkedAndOvertime(checkin, checkout, rotational);
+    expect(worked).toBe(300);
+    expect(overtime).toBe(240);
+  });
+
+  it("counts full session as overtime on off days", () => {
+    const checkin = jalaliToUTC(1405, 6, 30, 8, 0, "Asia/Tehran");
+    const checkout = jalaliToUTC(1405, 6, 30, 12, 0, "Asia/Tehran");
+    const { worked, overtime } = computeWorkedAndOvertime(checkin, checkout, rotational);
+    expect(worked).toBe(240);
+    expect(overtime).toBe(240);
   });
 });
 

@@ -120,15 +120,32 @@ export async function deleteWorkplaceAction(id: number): Promise<ActionResult> {
    Work schedules
    ============================================================ */
 
-const scheduleSchema = z.object({
-  id: z.number().int().positive().optional(),
-  name: z.string().trim().min(1).max(120),
-  working_days: z.array(z.number().int().min(0).max(6)).min(1).max(7),
-  start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
-  end_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
-  grace_minutes: z.number().int().min(0).max(240),
-  expected_hours: z.number().min(1).max(16).nullable(),
-});
+const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+const scheduleSchema = z.discriminatedUnion("schedule_type", [
+  z.object({
+    id: z.number().int().positive().optional(),
+    schedule_type: z.literal("fixed"),
+    name: z.string().trim().min(1).max(120),
+    working_days: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+    start_time: z.string().regex(timeRegex).nullable(),
+    end_time: z.string().regex(timeRegex).nullable(),
+    grace_minutes: z.number().int().min(0).max(240),
+    expected_hours: z.number().min(1).max(16).nullable(),
+  }),
+  z.object({
+    id: z.number().int().positive().optional(),
+    schedule_type: z.literal("rotational"),
+    name: z.string().trim().min(1).max(120),
+    grace_minutes: z.number().int().min(0).max(240),
+    rotation_anchor_date: z.string().regex(dateRegex),
+    morning_start_time: z.string().regex(timeRegex),
+    morning_end_time: z.string().regex(timeRegex),
+    evening_start_time: z.string().regex(timeRegex),
+    evening_end_time: z.string().regex(timeRegex),
+  }),
+]);
 
 export async function saveScheduleAction(input: unknown): Promise<ActionResult> {
   const admin = await getAdminOrNull();
@@ -138,13 +155,45 @@ export async function saveScheduleAction(input: unknown): Promise<ActionResult> 
   if (!parsed.success) return { ok: false, error: "اطلاعات برنامه کاری معتبر نیست." };
 
   const supabase = await createClient();
-  const { id, ...values } = parsed.data;
+  const data = parsed.data;
+  const id = data.id;
+
+  const values =
+    data.schedule_type === "fixed"
+      ? {
+          schedule_type: "fixed" as const,
+          name: data.name,
+          working_days: data.working_days,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          grace_minutes: data.grace_minutes,
+          expected_hours: data.expected_hours,
+          rotation_anchor_date: null,
+          morning_start_time: null,
+          morning_end_time: null,
+          evening_start_time: null,
+          evening_end_time: null,
+        }
+      : {
+          schedule_type: "rotational" as const,
+          name: data.name,
+          working_days: [0, 1, 2, 3, 4, 5, 6],
+          start_time: null,
+          end_time: null,
+          grace_minutes: data.grace_minutes,
+          expected_hours: null,
+          rotation_anchor_date: data.rotation_anchor_date,
+          morning_start_time: data.morning_start_time,
+          morning_end_time: data.morning_end_time,
+          evening_start_time: data.evening_start_time,
+          evening_end_time: data.evening_end_time,
+        };
 
   let error;
   if (id) {
-    ({ error } = await supabase.from("work_schedules").update(values).eq("id", id));
+    ({ error } = await supabase.from("work_schedules").update(values as never).eq("id", id));
   } else {
-    ({ error } = await supabase.from("work_schedules").insert(values));
+    ({ error } = await supabase.from("work_schedules").insert(values as never));
   }
   if (error) return { ok: false, error: persianError(error.message) };
 

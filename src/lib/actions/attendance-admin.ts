@@ -62,26 +62,40 @@ async function scheduleFor(
 ): Promise<ScheduleInfo | null> {
   const { data } = await supabase
     .from("employee_schedules")
-    .select("schedule:work_schedules(working_days, start_time, end_time, grace_minutes, expected_hours)")
+    .select(
+      "schedule:work_schedules(schedule_type, working_days, start_time, end_time, grace_minutes, expected_hours, rotation_anchor_date, morning_start_time, morning_end_time, evening_start_time, evening_end_time)"
+    )
     .eq("profile_id", profileId)
     .maybeSingle<{
       schedule: {
+        schedule_type: "fixed" | "rotational" | null;
         working_days: number[] | null;
         start_time: string | null;
         end_time: string | null;
         grace_minutes: number | null;
         expected_hours: number | null;
+        rotation_anchor_date: string | null;
+        morning_start_time: string | null;
+        morning_end_time: string | null;
+        evening_start_time: string | null;
+        evening_end_time: string | null;
       } | null;
     }>();
 
   const s = data?.schedule;
   if (!s) return null;
   return {
+    scheduleType: s.schedule_type ?? "fixed",
     workingDays: s.working_days ?? [0, 1, 2, 3, 4],
     startTime: s.start_time ? s.start_time.slice(0, 5) : null,
     endTime: s.end_time ? s.end_time.slice(0, 5) : null,
     graceMinutes: s.grace_minutes ?? 10,
     expectedMinutes: s.expected_hours != null ? Math.round(Number(s.expected_hours) * 60) : null,
+    rotationAnchorDate: s.rotation_anchor_date,
+    morningStartTime: s.morning_start_time ? s.morning_start_time.slice(0, 5) : null,
+    morningEndTime: s.morning_end_time ? s.morning_end_time.slice(0, 5) : null,
+    eveningStartTime: s.evening_start_time ? s.evening_start_time.slice(0, 5) : null,
+    eveningEndTime: s.evening_end_time ? s.evening_end_time.slice(0, 5) : null,
   };
 }
 
@@ -173,8 +187,8 @@ export async function adjustAttendanceAction(input: unknown): Promise<ActionResu
     }
     const checkinAt = new Date(session.checkin_at);
     const sched = await scheduleFor(supabase, session.profile_id);
-    const { worked, overtime } = computeWorkedAndOvertime(checkinAt, targetInstant, sched?.expectedMinutes ?? null);
-    const early = sched ? computeEarlyLeaveMinutes(targetInstant, tzSetting, sched) : 0;
+    const { worked, overtime } = computeWorkedAndOvertime(checkinAt, targetInstant, sched, tzSetting);
+    const early = sched ? computeEarlyLeaveMinutes(targetInstant, tzSetting, sched, checkinAt) : 0;
     updates.checkout_at = targetInstant.toISOString();
     updates.worked_minutes = worked;
     updates.overtime_minutes = overtime;
@@ -195,7 +209,8 @@ export async function adjustAttendanceAction(input: unknown): Promise<ActionResu
       const { worked, overtime } = computeWorkedAndOvertime(
         targetInstant,
         new Date(session.checkout_at),
-        sched?.expectedMinutes ?? null
+        sched,
+        tzSetting
       );
       updates.worked_minutes = worked;
       updates.overtime_minutes = overtime;

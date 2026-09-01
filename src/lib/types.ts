@@ -41,14 +41,22 @@ export interface EmployeeWorkplace {
   is_primary: boolean;
 }
 
+export type ScheduleType = "fixed" | "rotational";
+
 export interface WorkSchedule {
   id: number;
   name: string;
+  schedule_type: ScheduleType;
   working_days: number[]; // Persian weekday index 0=شنبه..6=جمعه
   start_time: string | null; // "09:00:00"
   end_time: string | null;
   grace_minutes: number;
   expected_hours: number | null;
+  rotation_anchor_date: string | null; // date
+  morning_start_time: string | null;
+  morning_end_time: string | null;
+  evening_start_time: string | null;
+  evening_end_time: string | null;
   created_at: string;
 }
 
