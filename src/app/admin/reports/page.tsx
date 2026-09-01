@@ -6,13 +6,20 @@ import { ReportsFilters } from "@/components/admin/reports-filters";
 import { GlassCard, SectionTitle, StatCard } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/lib/supabase/server";
-import { getEmployeeSummary, getReportSessions, jalaliToIsoDate } from "@/lib/reports";
-import { dateToJalali, jalaliMonthLength, jalaliToGregorianDate } from "@/lib/jalali";
+import {
+  filterSessionsByStatus,
+  getEmployeeSummary,
+  getReportFilterOptions,
+  getReportSessions,
+} from "@/lib/reports";
+import { resolveReportRange } from "@/lib/report-range";
+import { dateToJalali } from "@/lib/jalali";
 import { faNum, formatClockDuration, timeInTz } from "@/lib/format";
 import { getSettings } from "@/lib/settings-server";
 
 export const dynamic = "force-dynamic";
+
+const DETAIL_LIMIT = 100;
 
 export default async function ReportsPage({
   searchParams,
@@ -21,65 +28,30 @@ export default async function ReportsPage({
 }) {
   const sp = await searchParams;
   const settings = await getSettings();
-  const supabase = await createClient();
-
   const now = new Date();
   const todayJ = dateToJalali(now, settings.timezone);
 
-  // resolve jalali range
-  let from = { ...todayJ };
-  let to = { ...todayJ };
+  const { from, to, fromISO, toISO } = resolveReportRange(sp, settings.timezone, now);
 
-  const preset = sp.p ?? "month";
-  if (preset === "custom" && sp.from && sp.to) {
-    const [fy, fm, fd] = sp.from.split("-").map(Number);
-    const [ty, tm, td] = sp.to.split("-").map(Number);
-    if (fy && fm && fd) from = { jy: fy, jm: fm, jd: fd };
-    if (ty && tm && td) to = { jy: ty, jm: tm, jd: td };
-  } else if (preset === "today") {
-    from = { ...todayJ };
-    to = { ...todayJ };
-  } else if (preset === "week") {
-    from = shiftDays(todayJ, -6, settings.timezone);
-    to = { ...todayJ };
-  } else if (preset === "lastmonth") {
-    const pm = todayJ.jm === 1 ? 12 : todayJ.jm - 1;
-    const py = todayJ.jm === 1 ? todayJ.jy - 1 : todayJ.jy;
-    from = { jy: py, jm: pm, jd: 1 };
-    to = { jy: py, jm: pm, jd: jalaliMonthLength(py, pm) };
-  } else {
-    // this month
-    from = { jy: todayJ.jy, jm: todayJ.jm, jd: 1 };
-    to = { ...todayJ };
-  }
-
-  const fromISO = jalaliToIsoDate(from);
-  const toISO = jalaliToIsoDate(to);
-
-  // filters
   const employeeId = sp.emp || null;
   const workplaceId = sp.wp ? Number(sp.wp) : null;
   const status = sp.st ?? "all";
 
-  const [summaries, sessions] = await Promise.all([
-    employeeId
-      ? (async () => {
-          // summary fn takes optional single employee via second param in SQL? we exposed only global; filter client-side
-          const all = await getEmployeeSummary(fromISO, toISO);
-          return all.filter((s) => s.profile_id === employeeId);
-        })()
-      : getEmployeeSummary(fromISO, toISO),
+  const [summaries, sessions, filterOptions] = await Promise.all([
+    getEmployeeSummary(fromISO, toISO, employeeId),
     getReportSessions(fromISO, toISO, employeeId, workplaceId),
+    getReportFilterOptions(),
   ]);
 
-  const filteredSessions = sessions.filter((s) => {
-    if (status === "late") return s.late_minutes > 0;
-    if (status === "open") return !s.checkout_at;
-    return true;
-  });
+  const filteredSessions = filterSessionsByStatus(sessions, status);
 
-  // totals
-  const totals = summaries.reduce(
+  // When filtering by workplace, narrow summary to employees with sessions in that workplace.
+  const visibleSummaries =
+    workplaceId && !employeeId
+      ? summaries.filter((s) => sessions.some((sess) => sess.profile_id === s.profile_id))
+      : summaries;
+
+  const totals = visibleSummaries.reduce(
     (acc, r) => ({
       expected: acc.expected + Number(r.expected_days),
       present: acc.present + Number(r.present_days),
@@ -94,13 +66,7 @@ export default async function ReportsPage({
     { expected: 0, present: 0, absent: 0, lateDays: 0, lateMinutes: 0, worked: 0, overtime: 0, missedOut: 0, early: 0 }
   );
 
-  const [{ data: employeesRaw }, { data: workplacesRaw }] = await Promise.all([
-    supabase.from("profiles").select("user_id, first_name, last_name").eq("role", "employee").eq("employment_status", "active").order("first_name"),
-    supabase.from("workplaces").select("id, name").order("name"),
-  ]);
-
-  const employees = (employeesRaw ?? []).map((e) => ({ user_id: e.user_id as string, name: `${e.first_name} ${e.last_name}` }));
-  const workplaces = (workplacesRaw ?? []).map((w) => ({ id: w.id as number, name: w.name as string }));
+  const detailSessions = filteredSessions.slice(0, DETAIL_LIMIT);
 
   return (
     <>
@@ -108,11 +74,16 @@ export default async function ReportsPage({
 
       <Suspense fallback={<div className="skeleton h-24 rounded-2xl" />}>
         <div className="mb-5">
-          <ReportsFilters options={{ employees, workplaces, today: todayJ }} />
+          <ReportsFilters
+            options={{
+              employees: filterOptions.employees,
+              workplaces: filterOptions.workplaces,
+              today: todayJ,
+            }}
+          />
         </div>
       </Suspense>
 
-      {/* metrics */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="روزهای کاری موردانتظار" value={faNum(totals.expected)} icon={<CalendarRange className="size-4" />} />
         <StatCard label="روزهای حاضر" value={faNum(totals.present)} tone="success" />
@@ -125,12 +96,11 @@ export default async function ReportsPage({
         <StatCard label="خروج ثبت‌نشده" value={faNum(totals.missedOut)} tone={totals.missedOut > 0 ? "danger" : "default"} />
       </div>
 
-      {/* per-employee summary */}
       <GlassCard className="mt-6 overflow-hidden">
         <div className="border-b border-[color:var(--border-line)] p-5 pb-4">
           <SectionTitle title="خلاصه به تفکیک کارمند" />
         </div>
-        {summaries.length === 0 ? (
+        {visibleSummaries.length === 0 ? (
           <EmptyState icon={FileBarChart} title="داده‌ای برای این بازه نیست" />
         ) : (
           <div className="overflow-x-auto">
@@ -143,7 +113,7 @@ export default async function ReportsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--border-line)]">
-                {summaries.map((r) => (
+                {visibleSummaries.map((r) => (
                   <tr key={r.profile_id} className="transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
                     <td className="px-4 py-3">
                       <Link href={`/admin/employees/${r.profile_id}`} className="font-bold hover:text-brand-500">
@@ -168,16 +138,23 @@ export default async function ReportsPage({
         )}
       </GlassCard>
 
-      {/* drill-down */}
       <GlassCard className="mt-4 overflow-hidden">
         <div className="border-b border-[color:var(--border-line)] p-5 pb-4">
-          <SectionTitle title="رکوردهای تفصیلی" subtitle={`${faNum(filteredSessions.length)} رکورد — ۱۰۰ رکورد اول نمایش داده می‌شود`} action={<Badge tone="brand">برای جزئیات روی ردیف کلیک کنید</Badge>} />
+          <SectionTitle
+            title="رکوردهای تفصیلی"
+            subtitle={
+              filteredSessions.length > DETAIL_LIMIT
+                ? `${faNum(filteredSessions.length)} رکورد — ${faNum(DETAIL_LIMIT)} رکورد اول نمایش داده می‌شود`
+                : `${faNum(filteredSessions.length)} رکورد`
+            }
+            action={<Badge tone="brand">برای جزئیات روی ردیف کلیک کنید</Badge>}
+          />
         </div>
         {filteredSessions.length === 0 ? (
           <EmptyState icon={FileBarChart} title="رکوردی یافت نشد" />
         ) : (
           <ul className="divide-y divide-[color:var(--border-line)]">
-            {filteredSessions.slice(0, 100).map((s) => (
+            {detailSessions.map((s) => (
               <li key={s.session_id}>
                 <Link href={`/admin/attendance/${s.session_id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
                   <span className="min-w-36 text-sm font-bold">{s.full_name}</span>
@@ -204,9 +181,4 @@ export default async function ReportsPage({
 function monthName(jm: number): string {
   const names = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
   return names[jm - 1] ?? "";
-}
-
-function shiftDays(d: { jy: number; jm: number; jd: number }, days: number, timeZone: string): { jy: number; jm: number; jd: number } {
-  const g = jalaliToGregorianDate(d.jy, d.jm, d.jd);
-  return dateToJalali(new Date(g.getTime() + days * 86_400_000), timeZone);
 }

@@ -162,6 +162,13 @@ export function isJalaliLeap(jy: number): boolean {
   return jalCal(jy).leap === 0;
 }
 
+/** Convert Jalali Y/M/D to a Gregorian ISO date string (YYYY-MM-DD). */
+export function jalaliYmdToIso(d: JalaliDate): string {
+  const g = jalaliToGregorianDate(d.jy, d.jm, d.jd);
+  const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
+  return `${g.getUTCFullYear()}-${pad(g.getUTCMonth() + 1)}-${pad(g.getUTCDate())}`;
+}
+
 /** Days in a Jalali month. */
 export function jalaliMonthLength(jy: number, jm: number): number {
   if (jm <= 6) return 31;

@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAdminOrNull } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import { getEmployeeSummary, getReportSessions } from "@/lib/reports";
-import { dateToJalali, jalaliMonthLength, jalaliToGregorianDate } from "@/lib/jalali";
-import { jalaliDayBoundsUTC } from "@/lib/format";
+import { filterSessionsByStatus, getEmployeeSummary, getReportSessions } from "@/lib/reports";
+import { resolveReportRange } from "@/lib/report-range";
+import { getSettings } from "@/lib/settings-server";
+import { timeInTz } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -21,69 +22,51 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const format = sp.get("format") === "xls" ? "xls" : "csv";
 
-  const now = new Date();
-  const tz = await getTimezone();
-  const todayJ = dateToJalali(now, tz);
-  const preset = sp.get("p") ?? "month";
-
-  let from = { ...todayJ };
-  let to = { ...todayJ };
-  if (preset === "custom" && sp.get("from") && sp.get("to")) {
-    parse(sp.get("from")!, (r) => (from = r));
-    parse(sp.get("to")!, (r) => (to = r));
-  } else if (preset === "today") {
-    // already
-  } else if (preset === "week") {
-    from = shift(todayJ, -6, tz);
-  } else if (preset === "lastmonth") {
-    const pm = todayJ.jm === 1 ? 12 : todayJ.jm - 1;
-    const py = todayJ.jm === 1 ? todayJ.jy - 1 : todayJ.jy;
-    from = { jy: py, jm: pm, jd: 1 };
-    to = { jy: py, jm: pm, jd: jalaliMonthLength(py, pm) };
-  } else {
-    from = { jy: todayJ.jy, jm: todayJ.jm, jd: 1 };
-    to = { ...todayJ };
-  }
-
-  const bounds = jalaliDayBoundsUTC(from.jy, from.jm, from.jd, tz);
-  const boundsTo = jalaliDayBoundsUTC(to.jy, to.jm, to.jd, tz);
-  const fromISO = bounds.start.toISOString().slice(0, 10);
-  const toISO = new Date(boundsTo.end.getTime() - 1).toISOString().slice(0, 10);
+  const settings = await getSettings();
+  const tz = settings.timezone;
+  const { fromISO, toISO } = resolveReportRange(
+    {
+      p: sp.get("p") ?? "month",
+      from: sp.get("from") ?? undefined,
+      to: sp.get("to") ?? undefined,
+    },
+    tz
+  );
 
   const employeeId = sp.get("emp") || null;
+  const workplaceId = sp.get("wp") ? Number(sp.get("wp")) : null;
   const status = sp.get("st") ?? "all";
 
   const [sessions, summaries] = await Promise.all([
-    getReportSessions(fromISO, toISO, employeeId, sp.get("wp") ? Number(sp.get("wp")) : null),
-    getEmployeeSummary(fromISO, toISO),
+    getReportSessions(fromISO, toISO, employeeId, workplaceId),
+    getEmployeeSummary(fromISO, toISO, employeeId),
   ]);
 
-  const filtered = sessions.filter((s) => {
-    if (status === "late") return s.late_minutes > 0;
-    if (status === "open") return !s.checkout_at;
-    return true;
-  });
+  const filteredSessions = filterSessionsByStatus(sessions, status);
+
+  const visibleSummaries =
+    workplaceId && !employeeId
+      ? summaries.filter((s) => sessions.some((sess) => sess.profile_id === s.profile_id))
+      : summaries;
 
   const summaryHeaders = [
     "کارمند", "کد", "روزهای کاری", "حاضر", "غایب",
     "روز تأخیر", "دقایق تأخیر", "خروج زودهنگام", "بدون خروج", "کارکرد (دقیقه)", "اضافه‌کار (دقیقه)",
   ];
   const detailHeaders = [
-    "کارمند", "کد", "محل کار", "تاریخ ورود (سرور)", "ساعت ورود", "ساعت خروج",
+    "کارمند", "کد", "محل کار", "تاریخ ورود", "ساعت ورود", "ساعت خروج",
     "تأخیر (دقیقه)", "کارکرد (دقیقه)", "اضافه‌کار (دقیقه)", "فاصله ورود (متر)",
     "شعاع مجاز (متر)", "اصلاح‌شده", "مشکوک",
   ];
 
-  const rows: string[][] = summaries.map((r) => [
+  const rows: string[][] = visibleSummaries.map((r) => [
     r.full_name, r.employee_code ?? "", String(r.expected_days), String(r.present_days),
     String(r.absent_days), String(r.late_days), String(r.late_minutes_total),
     String(r.early_leaves), String(r.missed_checkouts), String(r.worked_minutes_total),
     String(r.overtime_total),
   ]);
 
-  void filtered;
-
-  const detailRows = sessions.map((s) => {
+  const detailRows = filteredSessions.map((s) => {
     const inAt = new Date(s.checkin_at);
     return [
       s.full_name,
@@ -107,7 +90,7 @@ export async function GET(request: NextRequest) {
   await writeAudit(admin.profile.user_id, {
     action: `report.export_${format}`,
     entity: "reports",
-    meta: { fromISO, toISO, rows: rows.length + detailRows.length },
+    meta: { fromISO, toISO, rows: rows.length + detailRows.length, status, employeeId, workplaceId },
   });
 
   if (format === "csv") {
@@ -132,7 +115,6 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // SpreadsheetML (.xls)
   const xml = buildSpreadsheetXml(filenameBase, [
     { name: "خلاصه کارمندان", headers: summaryHeaders, rows },
     { name: "رکوردهای تفصیلی", headers: detailHeaders, rows: detailRows },
@@ -181,28 +163,7 @@ function buildSpreadsheetXml(
 </Workbook>`;
 }
 
-async function getTimezone(): Promise<string> {
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { data } = await supabase.from("app_settings").select("timezone").eq("id", true).maybeSingle<{ timezone: string }>();
-  return data?.timezone ?? "Asia/Tehran";
-}
-
-function parse(s: string, cb: (r: { jy: number; jm: number; jd: number }) => void): void {
-  const [jy, jm, jd] = s.split("-").map(Number);
-  if (jy && jm && jd) cb({ jy, jm, jd });
-}
-
-function shift(d: { jy: number; jm: number; jd: number }, days: number, tz: string): { jy: number; jm: number; jd: number } {
-  const g = jalaliToGregorianDate(d.jy, d.jm, d.jd);
-  return dateToJalali(new Date(g.getTime() + days * 86_400_000), tz);
-}
-
 function isoDateInTz(date: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
   return fmt.format(date);
-}
-
-function timeInTz(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
 }

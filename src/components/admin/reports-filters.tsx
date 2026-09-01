@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/input";
-import { dateToJalali, jalaliToGregorianDate } from "@/lib/jalali";
+import { dateToJalali, JALALI_MONTHS, jalaliToGregorianDate } from "@/lib/jalali";
 
 export interface ReportFilterOptions {
   employees: Array<{ user_id: string; name: string }>;
@@ -177,12 +177,50 @@ function DateBox({
   def: { jy: number; jm: number; jd: number };
 }) {
   return (
-    <fieldset className="rounded-2xl border border-[color:var(--border-line)] p-2.5">
+    <fieldset className="min-w-0 flex-1 rounded-2xl border border-[color:var(--border-line)] p-2.5 sm:min-w-48">
       <legend className="px-1 text-[10px] font-semibold text-secondary">{legend}</legend>
-      <div className="flex items-center gap-1.5">
-        <input name={`${prefix}y`} type="number" dir="ltr" defaultValue={def.jy} min={1300} max={1500} aria-label="سال" className="glass-input w-16 rounded-lg px-1 py-2 text-center text-xs tabular-nums" />
-        <input name={`${prefix}m`} type="number" dir="ltr" defaultValue={def.jm} min={1} max={12} aria-label="ماه" className="glass-input w-12 rounded-lg px-1 py-2 text-center text-xs tabular-nums" />
-        <input name={`${prefix}d`} type="number" dir="ltr" defaultValue={def.jd} min={1} max={31} aria-label="روز" className="glass-input w-12 rounded-lg px-1 py-2 text-center text-xs tabular-nums" />
+      <div className="grid grid-cols-3 gap-1.5">
+        <label className="min-w-0">
+          <span className="mb-1 block text-center text-[10px] text-faint">سال</span>
+          <input
+            name={`${prefix}y`}
+            type="number"
+            dir="ltr"
+            defaultValue={def.jy}
+            min={1300}
+            max={1500}
+            aria-label="سال"
+            className="glass-input w-full min-w-0 rounded-lg px-1 py-2 text-center text-xs tabular-nums"
+          />
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1 block text-center text-[10px] text-faint">ماه</span>
+          <select
+            name={`${prefix}m`}
+            defaultValue={def.jm}
+            aria-label="ماه"
+            className="glass-input w-full min-w-0 appearance-none rounded-lg px-1 py-2 text-center text-xs"
+          >
+            {JALALI_MONTHS.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-0">
+          <span className="mb-1 block text-center text-[10px] text-faint">روز</span>
+          <input
+            name={`${prefix}d`}
+            type="number"
+            dir="ltr"
+            defaultValue={def.jd}
+            min={1}
+            max={31}
+            aria-label="روز"
+            className="glass-input w-full min-w-0 rounded-lg px-1 py-2 text-center text-xs tabular-nums"
+          />
+        </label>
       </div>
     </fieldset>
   );

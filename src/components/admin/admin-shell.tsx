@@ -108,7 +108,7 @@ export function AdminShell({
       </header>
 
       {/* ---------- content ---------- */}
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 safe-top">
+      <main className="safe-top min-w-0 flex-1 px-4 pb-6 pt-5 sm:px-6 sm:pt-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>
     </div>
@@ -125,7 +125,7 @@ export function AdminPageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3 pt-1 sm:pt-2">
       <div className="flex items-center gap-3">
         <UserCog className="hidden size-6 text-brand-500 sm:block" aria-hidden />
         <div>

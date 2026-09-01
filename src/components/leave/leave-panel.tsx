@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldLabel, Input, Textarea } from "@/components/ui/input";
+import { JalaliDateField, jalaliFieldToIso } from "@/components/ui/jalali-date-field";
 import { useToast } from "@/components/ui/toast";
 import { submitLeaveAction, type LeaveBalance } from "@/lib/actions/leave";
 import type { LeaveRequestRow } from "@/lib/actions/leave";
-import { dateToJalali, JALALI_MONTHS } from "@/lib/jalali";
+import { dateToJalali, JALALI_MONTHS, type JalaliDate } from "@/lib/jalali";
 import { faNum } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
@@ -18,6 +19,10 @@ const LEAVE_TYPES = [
   { value: "sick", label: "استعلاجی", desc: "با ارائه مدارک پزشکی" },
   { value: "unpaid", label: "بدون حقوق", desc: "خارج از سهمیه" },
 ] as const;
+
+function todayJalali(): JalaliDate {
+  return dateToJalali(new Date(), "Asia/Tehran");
+}
 
 function formatDateISO(iso: string): string {
   const j = dateToJalali(new Date(iso + "T12:00:00Z"), "Asia/Tehran");
@@ -33,6 +38,8 @@ export function LeavePanel({
 }) {
   const [durationType, setDurationType] = useState<"daily" | "hourly">("daily");
   const [leaveType, setLeaveType] = useState<"sick" | "entitlement" | "unpaid">("entitlement");
+  const [startDate, setStartDate] = useState<JalaliDate>(todayJalali);
+  const [endDate, setEndDate] = useState<JalaliDate>(todayJalali);
   const [pending, setPending] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -40,12 +47,15 @@ export function LeavePanel({
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const startISO = jalaliFieldToIso(startDate);
+    const endISO = durationType === "daily" ? jalaliFieldToIso(endDate) : startISO;
+
     setPending(true);
     const result = await submitLeaveAction({
       leave_type: leaveType,
       duration_type: durationType,
-      start_date: String(fd.get("start_date")),
-      end_date: durationType === "daily" ? String(fd.get("end_date")) : String(fd.get("start_date")),
+      start_date: startISO,
+      end_date: endISO,
       start_time: durationType === "hourly" ? String(fd.get("start_time")) : "",
       end_time: durationType === "hourly" ? String(fd.get("end_time")) : "",
       description: String(fd.get("description")),
@@ -55,6 +65,9 @@ export function LeavePanel({
       toast("success", "درخواست مرخصی ثبت شد و در انتظار تأیید مدیر است.");
       router.refresh();
       (e.target as HTMLFormElement).reset();
+      const today = todayJalali();
+      setStartDate(today);
+      setEndDate(today);
     } else {
       toast("error", result.error);
     }
@@ -111,48 +124,45 @@ export function LeavePanel({
           </button>
         </div>
 
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-1 gap-2 xs:grid-cols-3 sm:grid-cols-3">
           {LEAVE_TYPES.map((t) => (
             <button
               key={t.value}
               type="button"
               onClick={() => setLeaveType(t.value)}
-              className={`rounded-2xl px-3 py-3 text-center transition-colors ${
+              className={`min-w-0 rounded-2xl px-2 py-3 text-center transition-colors sm:px-3 ${
                 leaveType === t.value
                   ? "bg-brand-500/15 ring-1 ring-brand-500/30"
                   : "glass"
               }`}
             >
               <div className="text-xs font-bold">{t.label}</div>
-              <div className="mt-0.5 text-[10px] text-faint">{t.desc}</div>
+              <div className="mt-0.5 text-[10px] leading-4 text-faint">{t.desc}</div>
             </button>
           ))}
         </div>
 
         <form onSubmit={submit} className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel htmlFor="lv-start">تاریخ {durationType === "hourly" ? "" : "شروع"}</FieldLabel>
-              <Input id="lv-start" name="start_date" type="date" dir="ltr" required />
+          {durationType === "daily" ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <JalaliDateField id="lv-start" label="تاریخ شروع" value={startDate} onChange={setStartDate} />
+              <JalaliDateField id="lv-end" label="تاریخ پایان" value={endDate} onChange={setEndDate} />
             </div>
-            {durationType === "daily" ? (
-              <div>
-                <FieldLabel htmlFor="lv-end">تاریخ پایان</FieldLabel>
-                <Input id="lv-end" name="end_date" type="date" dir="ltr" required />
-              </div>
-            ) : (
-              <>
-                <div>
+          ) : (
+            <div className="space-y-3">
+              <JalaliDateField id="lv-start" label="تاریخ" value={startDate} onChange={setStartDate} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
                   <FieldLabel htmlFor="lv-st">ساعت شروع</FieldLabel>
-                  <Input id="lv-st" name="start_time" type="time" dir="ltr" required />
+                  <Input id="lv-st" name="start_time" type="time" dir="ltr" required className="min-w-0" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <FieldLabel htmlFor="lv-et">ساعت پایان</FieldLabel>
-                  <Input id="lv-et" name="end_time" type="time" dir="ltr" required />
+                  <Input id="lv-et" name="end_time" type="time" dir="ltr" required className="min-w-0" />
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
           <div>
             <FieldLabel htmlFor="lv-desc">توضیحات</FieldLabel>
             <Textarea id="lv-desc" name="description" rows={3} required placeholder="دلیل و توضیحات مرخصی…" maxLength={2000} />

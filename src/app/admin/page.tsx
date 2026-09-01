@@ -14,7 +14,7 @@ import { BarChart, DonutChart } from "@/components/charts";
 import { GlassCard, SectionTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getDashboardStats, getReportSessions } from "@/lib/reports";
+import { getDashboardStats, getRecentDashboardSessions } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import { dateToJalali } from "@/lib/jalali";
 import { faNum, formatClockDuration, timeInTz } from "@/lib/format";
@@ -55,7 +55,7 @@ export default async function AdminDashboardPage() {
   // today's recent sessions
   const todayStats = stats ? await getTodayBounds(settings.timezone) : null;
   const sessions = todayStats
-    ? await getReportSessions(todayStats.fromISO, todayStats.toISO)
+    ? await getRecentDashboardSessions(todayStats.startISO, todayStats.endISO, 8)
     : [];
 
   return (
@@ -191,11 +191,10 @@ export default async function AdminDashboardPage() {
   );
 }
 
-async function getTodayBounds(timezone: string): Promise<{ fromISO: string; toISO: string }> {
+async function getTodayBounds(timezone: string): Promise<{ startISO: string; endISO: string }> {
   const now = new Date();
   const j = dateToJalali(now, timezone);
   const { jalaliDayBoundsUTC } = await import("@/lib/format");
   const { start, end } = jalaliDayBoundsUTC(j.jy, j.jm, j.jd, timezone);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { fromISO: iso(start), toISO: iso(new Date(end.getTime() - 1)) };
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
