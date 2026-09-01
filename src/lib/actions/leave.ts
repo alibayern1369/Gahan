@@ -149,28 +149,59 @@ export interface LeaveRequestRow {
   profiles?: { first_name: string; last_name: string; employee_code: string | null };
 }
 
+const LEAVE_REQUEST_PROFILE_SELECT =
+  "*, profiles!leave_requests_profile_id_fkey(first_name, last_name, employee_code)";
+
 export async function getMyLeaveRequests(): Promise<LeaveRequestRow[]> {
   const auth = await requireAuth();
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("leave_requests")
     .select("*")
     .eq("profile_id", auth.profile.user_id)
     .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[getMyLeaveRequests]", error.message);
+    return [];
+  }
   return (data ?? []) as LeaveRequestRow[];
 }
 
-export async function getAllLeaveRequests(status?: LeaveRequestStatus): Promise<LeaveRequestRow[]> {
+export type LeaveRequestsResult =
+  | { ok: true; data: LeaveRequestRow[] }
+  | { ok: false; error: string; data: LeaveRequestRow[] };
+
+export async function getAllLeaveRequests(status?: LeaveRequestStatus): Promise<LeaveRequestsResult> {
   const admin = await getAdminOrNull();
-  if (!admin) return [];
+  if (!admin) return { ok: false, error: "دسترسی غیرمجاز.", data: [] };
 
   const supabase = await createClient();
   let q = supabase
     .from("leave_requests")
-    .select("*, profiles!inner(first_name, last_name, employee_code)")
+    .select(LEAVE_REQUEST_PROFILE_SELECT)
     .order("created_at", { ascending: false });
 
   if (status) q = q.eq("status", status);
-  const { data } = await q;
-  return (data ?? []) as LeaveRequestRow[];
+  const { data, error } = await q;
+  if (error) {
+    console.error("[getAllLeaveRequests]", error.message);
+    return { ok: false, error: "بارگذاری درخواست‌های مرخصی ناموفق بود.", data: [] };
+  }
+  return { ok: true, data: (data ?? []) as LeaveRequestRow[] };
+}
+
+export async function getPendingLeaveCount(): Promise<number> {
+  const admin = await getAdminOrNull();
+  if (!admin) return 0;
+
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("leave_requests")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending");
+  if (error) {
+    console.error("[getPendingLeaveCount]", error.message);
+    return 0;
+  }
+  return count ?? 0;
 }

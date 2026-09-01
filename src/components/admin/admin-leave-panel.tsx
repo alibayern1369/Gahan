@@ -23,22 +23,28 @@ export function AdminLeavePanel({
   balances,
   timezone,
   filter,
+  loadError,
 }: {
   requests: LeaveRequestRow[];
   balances: { profile_id: string; full_name: string; balance: LeaveBalance | null }[];
   timezone: string;
   filter: string;
+  loadError?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [reviewing, setReviewing] = useState<number | null>(null);
-  const [note, setNote] = useState("");
+  const [notes, setNotes] = useState<Record<number, string>>({});
 
   async function review(id: number, action: "approve" | "reject") {
     setReviewing(id);
-    const result = await reviewLeaveAction(id, action, note || undefined);
+    const result = await reviewLeaveAction(id, action, notes[id] || undefined);
     setReviewing(null);
-    setNote("");
+    setNotes((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     if (result.ok) {
       toast("success", action === "approve" ? "درخواست تأیید شد." : "درخواست رد شد.");
       router.refresh();
@@ -107,7 +113,9 @@ export function AdminLeavePanel({
             subtitle={`${faNum(requests.length)} مورد`}
           />
         </div>
-        {requests.length === 0 ? (
+        {loadError ? (
+          <p className="p-5 text-center text-xs font-bold text-rose-500">{loadError}</p>
+        ) : requests.length === 0 ? (
           <p className="p-5 text-center text-xs text-faint">درخواستی یافت نشد.</p>
         ) : (
           <ul className="divide-y divide-[color:var(--border-line)]">
@@ -146,11 +154,10 @@ export function AdminLeavePanel({
                         <Textarea
                           rows={2}
                           placeholder="یادداشت (اختیاری)…"
-                          value={reviewing === r.id ? note : ""}
-                          onChange={(e) => {
-                            setReviewing(r.id);
-                            setNote(e.target.value);
-                          }}
+                          value={notes[r.id] ?? ""}
+                          onChange={(e) =>
+                            setNotes((prev) => ({ ...prev, [r.id]: e.target.value }))
+                          }
                           className="text-xs"
                         />
                         <div className="flex gap-2">

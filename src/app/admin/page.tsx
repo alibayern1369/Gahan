@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ActivitySquare,
   CalendarCheck2,
+  CalendarHeart,
   Clock3,
   LogIn,
   LogOut,
@@ -14,6 +15,7 @@ import { BarChart, DonutChart } from "@/components/charts";
 import { GlassCard, SectionTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { getPendingLeaveCount } from "@/lib/actions/leave";
 import { getDashboardStats, getRecentDashboardSessions } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/server";
 import { dateToJalali } from "@/lib/jalali";
@@ -24,7 +26,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
   const settings = await getSettings();
-  const stats = await getDashboardStats();
+  const [stats, pendingLeave] = await Promise.all([getDashboardStats(), getPendingLeaveCount()]);
 
   // last 7 days presence chart (local tz days)
   const supabase = await createClient();
@@ -143,6 +145,18 @@ export default async function AdminDashboardPage() {
             <span className="flex items-center gap-2 text-sm font-bold text-amber-600 dark:text-amber-400">
               <ShieldAlert className="size-5" aria-hidden />
               {faNum(stats.open_suspicious)} رویداد مشکوک بررسی‌نشده وجود دارد.
+            </span>
+            <Badge tone="warning">بررسی</Badge>
+          </GlassCard>
+        </Link>
+      ) : null}
+
+      {pendingLeave > 0 ? (
+        <Link href="/admin/leave" className="mt-4 block">
+          <GlassCard className="flex items-center justify-between border border-brand-500/30 bg-brand-500/8 p-4">
+            <span className="flex items-center gap-2 text-sm font-bold text-brand-600 dark:text-brand-300">
+              <CalendarHeart className="size-5" aria-hidden />
+              {faNum(pendingLeave)} درخواست مرخصی در انتظار بررسی است.
             </span>
             <Badge tone="warning">بررسی</Badge>
           </GlassCard>

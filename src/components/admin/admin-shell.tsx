@@ -19,11 +19,12 @@ import {
 import { useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/components/sign-out-button";
+import { faNum } from "@/lib/format";
 
 const NAV = [
   { href: "/admin", label: "داشبورد", Icon: LayoutDashboard },
   { href: "/admin/today", label: "حضور امروز", Icon: ClipboardList },
-  { href: "/admin/leave", label: "مرخصی", Icon: CalendarHeart },
+  { href: "/admin/leave", label: "مرخصی", Icon: CalendarHeart, badgeKey: "leave" as const },
   { href: "/admin/employees", label: "کارمندان", Icon: Users },
   { href: "/admin/reports", label: "گزارش‌ها", Icon: FileBarChart },
   { href: "/admin/workplaces", label: "موقعیت‌های کاری", Icon: Building2 },
@@ -36,10 +37,12 @@ export function AdminShell({
   children,
   orgName,
   brand,
+  pendingLeave = 0,
 }: {
   children: React.ReactNode;
   orgName: string;
   brand: React.ReactNode;
+  pendingLeave?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -49,7 +52,10 @@ export function AdminShell({
 
   const nav = (
     <nav aria-label="ناوبری مدیریت" className="flex flex-col gap-1">
-      {NAV.map(({ href, label, Icon }) => (
+      {NAV.map(({ href, label, Icon, badgeKey }) => {
+        const badge =
+          badgeKey === "leave" && pendingLeave > 0 ? pendingLeave : null;
+        return (
         <Link
           key={href}
           href={href}
@@ -62,9 +68,15 @@ export function AdminShell({
           }`}
         >
           <Icon className="size-4.5 shrink-0" aria-hidden />
-          {label}
+          <span className="flex-1">{label}</span>
+          {badge ? (
+            <span className="flex size-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-extrabold text-white">
+              {badge > 9 ? `${faNum(9)}+` : faNum(badge)}
+            </span>
+          ) : null}
         </Link>
-      ))}
+        );
+      })}
     </nav>
   );
 

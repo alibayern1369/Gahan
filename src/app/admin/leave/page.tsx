@@ -30,7 +30,8 @@ export default async function AdminLeavePage({
   const statusFilter: LeaveRequestStatus | undefined =
     filter === "approved" || filter === "rejected" || filter === "pending" ? filter : undefined;
 
-  const requests = await getAllLeaveRequests(statusFilter);
+  const requestsResult = await getAllLeaveRequests(statusFilter);
+  const requests = requestsResult.data;
 
   const supabase = await createClient();
   const { data: employees } = await supabase
@@ -74,6 +75,7 @@ export default async function AdminLeavePage({
         balances={balances}
         timezone={settings.timezone}
         filter={filter}
+        loadError={requestsResult.ok ? undefined : requestsResult.error}
       />
     </>
   );
