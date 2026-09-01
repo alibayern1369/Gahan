@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { JalaliDateField, jalaliFieldToIso } from "@/components/ui/jalali-date-f
 import { useToast } from "@/components/ui/toast";
 import { submitLeaveAction, type LeaveBalance } from "@/lib/actions/leave";
 import type { LeaveRequestRow } from "@/lib/actions/leave";
-import { dateToJalali, JALALI_MONTHS, type JalaliDate } from "@/lib/jalali";
+import { dateToJalali, JALALI_MONTHS, type JalaliDate, compareJalali } from "@/lib/jalali";
 import { faNum } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard, SectionTitle } from "@/components/ui/card";
@@ -43,6 +43,10 @@ export function LeavePanel({
   const [pending, setPending] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    setEndDate((end) => (compareJalali(end, startDate) < 0 ? startDate : end));
+  }, [startDate]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -146,7 +150,7 @@ export function LeavePanel({
           {durationType === "daily" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <JalaliDateField id="lv-start" label="تاریخ شروع" value={startDate} onChange={setStartDate} />
-              <JalaliDateField id="lv-end" label="تاریخ پایان" value={endDate} onChange={setEndDate} />
+              <JalaliDateField id="lv-end" label="تاریخ پایان" value={endDate} onChange={setEndDate} minDate={startDate} />
             </div>
           ) : (
             <div className="space-y-3">

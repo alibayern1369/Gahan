@@ -37,6 +37,9 @@ export const PERSIAN_WEEKDAYS = [
   "جمعه",
 ] as const;
 
+/** Short weekday labels for calendar headers */
+export const PERSIAN_WEEKDAYS_SHORT = ["ش", "ی", "د", "س", "چ", "پ", "ج"] as const;
+
 function div(a: number, b: number): number {
   return Math.trunc(a / b);
 }
@@ -195,4 +198,46 @@ export function persianWeekdayIndex(date: Date, timeZone = "Asia/Tehran"): numbe
   const dow = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(date);
   const map: Record<string, number> = { Sat: 0, Sun: 1, Mon: 2, Tue: 3, Wed: 4, Thu: 5, Fri: 6 };
   return map[dow] ?? 0;
+}
+
+/** Weekday index (0=شنبه) for a Jalali civil date. */
+export function jalaliWeekdayIndex(jy: number, jm: number, jd: number): number {
+  return persianWeekdayIndex(jalaliToGregorianDate(jy, jm, jd));
+}
+
+/** Compare two Jalali dates; negative if a < b. */
+export function compareJalali(a: JalaliDate, b: JalaliDate): number {
+  if (a.jy !== b.jy) return a.jy - b.jy;
+  if (a.jm !== b.jm) return a.jm - b.jm;
+  return a.jd - b.jd;
+}
+
+export function sameJalali(a: JalaliDate, b: JalaliDate): boolean {
+  return a.jy === b.jy && a.jm === b.jm && a.jd === b.jd;
+}
+
+/** Add (or subtract) months, clamping day to month length. */
+export function addJalaliMonths(d: JalaliDate, months: number): JalaliDate {
+  let jm = d.jm + months;
+  let jy = d.jy;
+  while (jm > 12) {
+    jm -= 12;
+    jy += 1;
+  }
+  while (jm < 1) {
+    jm += 12;
+    jy -= 1;
+  }
+  return { jy, jm, jd: Math.min(d.jd, jalaliMonthLength(jy, jm)) };
+}
+
+/** Build a month grid with null padding cells; weeks start on Saturday. */
+export function buildJalaliMonthGrid(jy: number, jm: number): Array<JalaliDate | null> {
+  const len = jalaliMonthLength(jy, jm);
+  const firstWd = jalaliWeekdayIndex(jy, jm, 1);
+  const cells: Array<JalaliDate | null> = [];
+  for (let i = 0; i < firstWd; i += 1) cells.push(null);
+  for (let jd = 1; jd <= len; jd += 1) cells.push({ jy, jm, jd });
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
