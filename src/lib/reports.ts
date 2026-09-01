@@ -1,5 +1,4 @@
 import "server-only";
-import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { jalaliYmdToIso } from "@/lib/jalali";
 
@@ -132,7 +131,8 @@ export interface ReportFilterOptions {
   workplaces: Array<{ id: number; name: string }>;
 }
 
-async function fetchReportFilterOptions(): Promise<ReportFilterOptions> {
+/** Employee/workplace lists for report filter dropdowns. */
+export async function getReportFilterOptions(): Promise<ReportFilterOptions> {
   const supabase = await createClient();
   const [{ data: employeesRaw }, { data: workplacesRaw }] = await Promise.all([
     supabase
@@ -154,17 +154,6 @@ async function fetchReportFilterOptions(): Promise<ReportFilterOptions> {
       name: w.name as string,
     })),
   };
-}
-
-const getCachedReportFilterOptions = unstable_cache(
-  fetchReportFilterOptions,
-  ["report-filter-options"],
-  { revalidate: 300 }
-);
-
-/** Cached employee/workplace lists for report filter dropdowns. */
-export async function getReportFilterOptions(): Promise<ReportFilterOptions> {
-  return getCachedReportFilterOptions();
 }
 
 /** Lightweight query for dashboard recent sessions — avoids heavy report_sessions RPC. */
